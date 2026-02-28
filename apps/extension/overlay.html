@@ -30,12 +30,26 @@
         </div>
       </section>
 
-      <!-- Dropped Items Section -->
+      <!-- Dropped Items Section (gate-rejected) -->
       <div id="dropped-section" style="display:none">
         <div class="yc-section-header" id="dropped-toggle" style="cursor:pointer">
-          Dropped Items &#9656;
+          Dropped by Gate &#9656;
         </div>
         <div id="dropped-list" style="display:none"></div>
+      </div>
+
+      <!-- Filtered Items Section (pre-gate filter, debug only) -->
+      <div id="filtered-section" style="display:none">
+        <div class="yc-section-header" id="filtered-toggle" style="cursor:pointer">
+          Filtered Out (Pre-Gate) &#9656;
+        </div>
+        <div id="filtered-list" style="display:none"></div>
+      </div>
+
+      <!-- Debug Stats (debug only) -->
+      <div id="debug-stats" style="display:none">
+        <div class="yc-section-header">Pipeline Stats</div>
+        <div id="debug-stats-content" class="yc-debug-stats-content"></div>
       </div>
 
     </div>

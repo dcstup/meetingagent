@@ -31,18 +31,18 @@ def test_buffer_size():
 
 def test_filter_drop_low_confidence():
     items = [{"title": "Send email", "body": "test", "confidence": 0.3}]
-    assert filter_proposals(items) == []
+    assert filter_proposals(items)[0] == []
 
 
 def test_filter_keep_high_confidence():
     items = [{"title": "Send email to Bob", "body": "test", "confidence": 0.9}]
-    result = filter_proposals(items)
+    result, _ = filter_proposals(items)
     assert len(result) == 1
 
 
 def test_filter_uncertain_marker():
     items = [{"title": "Send update", "body": "test", "confidence": 0.6}]
-    result = filter_proposals(items)
+    result, _ = filter_proposals(items)
     assert len(result) == 1
     assert result[0]["title"].endswith("??")
 
@@ -55,7 +55,7 @@ def test_filter_no_action_verb_low_confidence():
             "confidence": 0.6,
         }
     ]
-    result = filter_proposals(items)
+    result, _ = filter_proposals(items)
     assert len(result) == 0
 
 
@@ -67,6 +67,6 @@ def test_filter_no_action_verb_high_confidence():
             "confidence": 0.9,
         }
     ]
-    result = filter_proposals(items)
+    result, _ = filter_proposals(items)
     # "compile" is an action verb in body
     assert len(result) == 1

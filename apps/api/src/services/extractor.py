@@ -46,8 +46,12 @@ class RollingBuffer:
         return len(self._entries)
 
 
-def filter_proposals(items: list[dict]) -> list[dict]:
-    """Apply confidence and action-verb filters to extracted proposals."""
+def filter_proposals(items: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Apply confidence and action-verb filters to extracted proposals.
+
+    Returns (passed, filtered_out) where filtered_out items include a
+    ``filter_reason`` key explaining why they were dropped.
+    """
     ACTION_VERBS = {
         "send", "draft", "create", "schedule", "follow", "review", "share",
         "update", "write", "prepare", "submit", "forward", "reply", "set",
@@ -56,16 +60,21 @@ def filter_proposals(items: list[dict]) -> list[dict]:
     }
 
     filtered = []
+    filtered_out: list[dict] = []
     for item in items:
         confidence = item.get("confidence", 0)
 
         # Drop low confidence
         if confidence < CONFIDENCE_THRESHOLD_DROP:
+            item["filter_reason"] = f"confidence {confidence} < {CONFIDENCE_THRESHOLD_DROP}"
+            filtered_out.append(item)
             continue
 
         # Drop items where readiness < 3 (topic still being debated)
         readiness = item.get("readiness")
         if readiness is not None and readiness < 3:
+            item["filter_reason"] = f"readiness {readiness} < 3 (still being debated)"
+            filtered_out.append(item)
             continue
 
         # Check for action verb in title
@@ -78,6 +87,8 @@ def filter_proposals(items: list[dict]) -> list[dict]:
             has_action_verb = any(verb in body_words for verb in ACTION_VERBS)
 
         if not has_action_verb and confidence < CONFIDENCE_THRESHOLD_UNSURE:
+            item["filter_reason"] = f"no action verb and confidence {confidence} < {CONFIDENCE_THRESHOLD_UNSURE}"
+            filtered_out.append(item)
             continue
 
         # Mark uncertain ones
@@ -86,4 +97,4 @@ def filter_proposals(items: list[dict]) -> list[dict]:
 
         filtered.append(item)
 
-    return filtered
+    return filtered, filtered_out

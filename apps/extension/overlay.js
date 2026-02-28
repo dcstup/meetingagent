@@ -4,9 +4,25 @@
   let config = {};
   let reconnectDelay = 3000;
   const MAX_RECONNECT_DELAY = 30000;
+  const debugMode = typeof DEBUG_MODE !== 'undefined' && DEBUG_MODE;
   const statusEl = document.getElementById('yc-status');
   const transcriptFeed = document.getElementById('transcript-feed');
   const proposalsList = document.getElementById('proposals-list');
+
+  // Debug counters
+  const stats = { utterances: 0, extracted: 0, filtered: 0, gateDropped: 0, gatePassed: 0 };
+
+  function updateDebugStats() {
+    if (!debugMode) return;
+    const el = document.getElementById('debug-stats');
+    el.style.display = '';
+    document.getElementById('debug-stats-content').innerHTML =
+      `<span>Utterances: <b>${stats.utterances}</b></span>` +
+      `<span>Passed filter: <b>${stats.extracted}</b></span>` +
+      `<span>Filtered out: <b>${stats.filtered}</b></span>` +
+      `<span>Gate passed: <b>${stats.gatePassed}</b></span>` +
+      `<span>Gate dropped: <b>${stats.gateDropped}</b></span>`;
+  }
 
   async function init(retries = 3) {
     // Get config from extension storage, with YESCHEF_API_URL as fallback
@@ -81,14 +97,27 @@
 
       case 'utterance':
         addUtterance(msg.data);
+        stats.utterances++;
+        updateDebugStats();
         break;
 
       case 'proposal_created':
         addProposal(msg.data);
+        stats.gatePassed++;
+        stats.extracted++;
+        updateDebugStats();
         break;
 
       case 'proposal_dropped':
         addDroppedProposal(msg.data);
+        stats.gateDropped++;
+        updateDebugStats();
+        break;
+
+      case 'proposal_filtered':
+        if (debugMode) addFilteredProposal(msg.data);
+        stats.filtered++;
+        updateDebugStats();
         break;
 
       case 'proposal_updated':
@@ -253,12 +282,41 @@
     list.appendChild(card);
   }
 
+  function addFilteredProposal(data) {
+    const section = document.getElementById('filtered-section');
+    const list = document.getElementById('filtered-list');
+    section.style.display = '';
+
+    const card = document.createElement('div');
+    card.className = 'yc-filtered-card';
+
+    card.innerHTML = `
+      <div class="yc-filter-reason">${escapeHtml(data.filter_reason)}</div>
+      <div class="yc-proposal-title">${escapeHtml(data.title)}</div>
+      <div class="yc-proposal-body">${escapeHtml(data.body)}</div>
+      ${data.recipient ? `<div class="yc-proposal-recipient">To: ${escapeHtml(data.recipient)}</div>` : ''}
+      <div class="yc-filter-meta">
+        confidence: ${data.confidence ?? '?'} &middot; readiness: ${data.readiness ?? '?'} &middot; type: ${escapeHtml(data.action_type || '?')}
+      </div>
+    `;
+
+    list.appendChild(card);
+  }
+
   // Dropped section toggle
   document.getElementById('dropped-toggle').addEventListener('click', function() {
     const list = document.getElementById('dropped-list');
     const visible = list.style.display !== 'none';
     list.style.display = visible ? 'none' : '';
-    this.textContent = visible ? 'Dropped Items \u25B8' : 'Dropped Items \u25BE';
+    this.textContent = visible ? 'Dropped by Gate \u25B8' : 'Dropped by Gate \u25BE';
+  });
+
+  // Filtered section toggle
+  document.getElementById('filtered-toggle').addEventListener('click', function() {
+    const list = document.getElementById('filtered-list');
+    const visible = list.style.display !== 'none';
+    list.style.display = visible ? 'none' : '';
+    this.textContent = visible ? 'Filtered Out (Pre-Gate) \u25B8' : 'Filtered Out (Pre-Gate) \u25BE';
   });
 
   const _pendingActions = new Set();

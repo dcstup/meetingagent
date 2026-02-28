@@ -126,6 +126,9 @@ async def evaluate_action(
     except Exception as e:
         return _fail_open(f"API call failed: {e}")
 
+    if not content:
+        return _fail_open("Gate model returned empty/null content")
+
     parsed = _parse_gate_response(content)
     if parsed is None or "scores" not in parsed:
         return _fail_open(f"Unparseable gate response: {content[:200]}")

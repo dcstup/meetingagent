@@ -173,12 +173,34 @@ async def _run_extraction_cycle(
             transcript_text = transcript_text[-MAX_CHARS:]
 
         # Extract action items via Cerebras
-        logger.info(f"Extracting from {len(new_utterances)} new utterances, buffer={buffer.size}")
+        logger.info(f"Extracting from {len(new_utterances)} new utterances, buffer={buffer.size}, text_len={len(transcript_text)}")
         raw_items = await extract_action_items(transcript_text)
         logger.info(f"Cerebras returned {len(raw_items)} raw items")
 
-        items = filter_proposals(raw_items)
-        logger.info(f"After filtering: {len(items)} items")
+        items, filtered_out = filter_proposals(raw_items)
+        logger.info(f"After filtering: {len(items)} passed, {len(filtered_out)} filtered out")
+
+        # Broadcast filtered-out items so the extension debug UI can show them
+        if filtered_out:
+            for fi in filtered_out:
+                try:
+                    await manager.broadcast(
+                        str(session.workspace_id),
+                        {
+                            "type": "proposal_filtered",
+                            "data": {
+                                "title": fi.get("title", ""),
+                                "body": fi.get("body", ""),
+                                "action_type": fi.get("action_type", "generic_draft"),
+                                "recipient": fi.get("recipient"),
+                                "confidence": fi.get("confidence", 0),
+                                "readiness": fi.get("readiness"),
+                                "filter_reason": fi.get("filter_reason", "unknown"),
+                            },
+                        },
+                    )
+                except Exception:
+                    pass
 
         if not items:
             return current_last_id

@@ -106,4 +106,11 @@ Only extract items with clear action verbs (send, create, schedule, follow up, d
     response = await loop.run_in_executor(None, _call_cerebras)
 
     content = response.choices[0].message.content
-    return _parse_items(content)
+    if not content:
+        logger.warning("Cerebras returned empty/null content for extraction")
+        return []
+    logger.info(f"Cerebras raw response ({len(content)} chars): {content[:500]}")
+    items = _parse_items(content)
+    if not items and content:
+        logger.warning(f"Cerebras returned content but parsing yielded 0 items. Full content: {content[:1000]}")
+    return items
