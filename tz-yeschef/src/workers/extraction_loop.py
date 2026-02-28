@@ -16,9 +16,55 @@ from src.models.tables import (
 from src.services.extractor import RollingBuffer, filter_proposals
 from src.services.cerebras import extract_action_items
 from src.services.deduper import compute_dedupe_hash, is_duplicate
-from src.services.embeddings import get_embedding
+from src.services.embeddings import get_embedding, cosine_similarity
+from src.services import gate
+from src.services.ws_manager import manager
 
 logger = logging.getLogger(__name__)
+
+
+async def _get_rag_context(
+    session_id: str, query_text: str, top_k: int = 5,
+) -> list[dict]:
+    """Retrieve top-k semantically similar utterances as RAG context chunks."""
+    try:
+        query_embedding = await get_embedding(query_text)
+    except Exception as e:
+        logger.warning(f"RAG embedding failed for gate context: {e}")
+        return []
+
+    async with async_session() as db:
+        result = await db.execute(
+            select(Utterance)
+            .where(Utterance.session_id == uuid.UUID(session_id))
+            .order_by(Utterance.created_at)
+        )
+        utterances = result.scalars().all()
+
+    if not utterances:
+        return []
+
+    scored = []
+    for u in utterances:
+        try:
+            u_emb = await get_embedding(u.text)
+            sim = cosine_similarity(query_embedding, u_emb)
+            scored.append((sim, u))
+        except Exception:
+            continue
+
+    if not scored:
+        return []
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    top = scored[:top_k]
+    top.sort(key=lambda x: x[1].created_at)
+
+    return [
+        {"time_offset": str(u.timestamp_ms), "text": f"{u.speaker}: {u.text}"}
+        for _, u in top
+    ]
+
 
 # Active extraction tasks per session
 _active_sessions: dict[str, asyncio.Task] = {}
@@ -172,6 +218,38 @@ async def _run_extraction_cycle(
             except Exception as e:
                 logger.warning(f"Embedding failed (dedup will use hash only): {e}")
 
+            # --- Pre-approval gate ---
+            candidate = {
+                "title": item.get("title", ""),
+                "action_type": item.get("action_type", "generic_draft"),
+                "body": item.get("body", ""),
+                "recipient": item.get("recipient"),
+            }
+
+            rag_chunks = await _get_rag_context(
+                session_id,
+                f"{candidate['title']} {candidate['body']}",
+            )
+
+            # Collect unique speakers from buffer as participants
+            speakers = list({
+                e.speaker for e in buffer._entries
+            })
+            meeting_ctx = {
+                "title": getattr(session, "title", ""),
+                "participants": speakers,
+            }
+
+            gate_result = await gate.evaluate_action(
+                candidate=candidate,
+                transcript_window=transcript_text,
+                rag_context_chunks=rag_chunks,
+                meeting_context=meeting_ctx,
+            )
+
+            gate_passed = gate_result.get("passed", True)
+            gate_scores = gate_result.get("scores", {})
+
             proposal = Proposal(
                 session_id=uuid.UUID(session_id),
                 action_type=item.get("action_type", "generic_draft"),
@@ -182,14 +260,23 @@ async def _run_extraction_cycle(
                 dedupe_key=dedupe_key,
                 dedupe_hash=compute_dedupe_hash(session_id, dedupe_key),
                 embedding=embedding,
-                status=ProposalStatus.pending,
+                status=ProposalStatus.pending if gate_passed else ProposalStatus.dropped,
                 source_text=transcript_text[:2000],
+                gate_scores=gate_scores,
+                gate_avg_score=gate_result.get("avg_score"),
+                gate_readiness=gate_scores.get("readiness"),
+                gate_evidence_quote=gate_result.get("verbatim_evidence_quote"),
+                gate_missing_info=gate_result.get("missing_critical_info"),
+                gate_passed=gate_passed,
             )
             db.add(proposal)
             await db.flush()
             new_proposals.append(proposal)
 
-            logger.info(f"New proposal: {proposal.title} (confidence={proposal.confidence})")
+            logger.info(
+                f"New proposal: {proposal.title} "
+                f"(confidence={proposal.confidence}, gate_passed={gate_passed})"
+            )
 
             existing_dicts.append(
                 {
@@ -203,22 +290,46 @@ async def _run_extraction_cycle(
 
         for proposal in new_proposals:
             try:
-                from src.services.ws_manager import manager
+                gate_data = {
+                    "gate_passed": proposal.gate_passed,
+                    "gate_scores": proposal.gate_scores,
+                    "gate_avg_score": proposal.gate_avg_score,
+                    "gate_evidence_quote": proposal.gate_evidence_quote,
+                    "gate_missing_info": proposal.gate_missing_info,
+                }
 
-                await manager.broadcast(
-                    str(session.workspace_id),
-                    {
-                        "type": "proposal_created",
-                        "data": {
-                            "id": str(proposal.id),
-                            "action_type": proposal.action_type,
-                            "title": proposal.title,
-                            "body": proposal.body,
-                            "recipient": proposal.recipient,
-                            "confidence": proposal.confidence,
+                if proposal.gate_passed:
+                    await manager.broadcast(
+                        str(session.workspace_id),
+                        {
+                            "type": "proposal_created",
+                            "data": {
+                                "id": str(proposal.id),
+                                "action_type": proposal.action_type,
+                                "title": proposal.title,
+                                "body": proposal.body,
+                                "recipient": proposal.recipient,
+                                "confidence": proposal.confidence,
+                                **gate_data,
+                            },
                         },
-                    },
-                )
+                    )
+                else:
+                    await manager.broadcast(
+                        str(session.workspace_id),
+                        {
+                            "type": "proposal_dropped",
+                            "data": {
+                                "id": str(proposal.id),
+                                "action_type": proposal.action_type,
+                                "title": proposal.title,
+                                "body": proposal.body,
+                                "recipient": proposal.recipient,
+                                "confidence": proposal.confidence,
+                                **gate_data,
+                            },
+                        },
+                    )
             except Exception:
                 pass
 
