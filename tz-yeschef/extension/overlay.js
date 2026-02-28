@@ -311,5 +311,16 @@
     }
   }, 30000);
 
+  // Re-init when config is written to storage (e.g. after user connects via popup)
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local') return;
+    if (changes.workspace_id || changes.api_url || changes.overlay_token) {
+      // Only re-init if we don't already have a working connection
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        init();
+      }
+    }
+  });
+
   init();
 })();

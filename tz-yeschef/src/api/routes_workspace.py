@@ -22,6 +22,7 @@ async def init_workspace(db: AsyncSession = Depends(get_db)):
             "workspace_id": str(workspace.id),
             "overlay_token": workspace.overlay_token,
             "has_google": workspace.composio_entity_id is not None,
+            "has_google_calendar": workspace.has_google_calendar,
         }
 
     workspace = Workspace(
@@ -40,6 +41,7 @@ async def init_workspace(db: AsyncSession = Depends(get_db)):
         "workspace_id": str(workspace.id),
         "overlay_token": workspace.overlay_token,
         "has_google": False,
+        "has_google_calendar": False,
     }
 
 
@@ -62,6 +64,24 @@ async def oauth_google(db: AsyncSession = Depends(get_db)):
         auth_url = initiate_gcal_oauth(entity_id, redirect_url)
 
     return {"auth_url": auth_url}
+
+
+@router.post("/workspace/oauth/google-calendar")
+async def oauth_google_calendar(db: AsyncSession = Depends(get_db)):
+    """Initiate Google Calendar OAuth via Composio."""
+    result = await db.execute(select(Workspace).limit(1))
+    workspace = result.scalar_one_or_none()
+    if not workspace:
+        raise HTTPException(status_code=404, detail="No workspace found")
+    if not workspace.composio_entity_id:
+        raise HTTPException(status_code=400, detail="Connect Google (Gmail) first")
+
+    entity_id = str(workspace.id)
+    redirect_url = f"{settings.app_public_url}/api/workspace/oauth/callback"
+
+    from src.services.composio_client import initiate_gcal_oauth
+    auth_url = initiate_gcal_oauth(entity_id, redirect_url)
+    return {"url": auth_url}
 
 
 @router.get("/workspace/oauth/callback")
@@ -88,6 +108,10 @@ async def oauth_callback(request: Request, db: AsyncSession = Depends(get_db)):
         from fastapi.responses import RedirectResponse
         return RedirectResponse(url=gcal_url)
 
+    # If we didn't redirect to gcal OAuth, calendar OAuth just completed
+    workspace.has_google_calendar = True
+    await db.commit()
+
     return {"status": "connected", "message": "Google account connected successfully"}
 
 
@@ -97,12 +121,14 @@ async def join_meeting(
     db: AsyncSession = Depends(get_db),
 ):
     """Manually trigger a bot to join a Google Meet URL."""
+    from src.adapters import get_adapter
     from src.models.tables import MeetingSession, MeetingStatus
-    from src.services.recall import create_bot
 
     body = await request.json()
     meet_url = body.get("meet_url", "").strip()
-    if not meet_url or "meet.google.com" not in meet_url:
+    adapter_type = body.get("adapter_type", "recall")
+
+    if adapter_type == "recall" and (not meet_url or "meet.google.com" not in meet_url):
         raise HTTPException(status_code=400, detail="Invalid Google Meet URL")
 
     result = await db.execute(select(Workspace).limit(1))
@@ -114,13 +140,21 @@ async def join_meeting(
         f"{settings.app_public_url}/webhooks/recall/"
         f"{workspace.webhook_secret}/transcript"
     )
-    bot_resp = await create_bot(meet_url, webhook_url)
+
+    adapter = get_adapter(adapter_type)
+    metadata = await adapter.start_session(
+        workspace_id=str(workspace.id),
+        meeting_url=meet_url,
+        webhook_url=webhook_url,
+    )
 
     meeting = MeetingSession(
         workspace_id=workspace.id,
-        recall_bot_id=bot_resp.get("id"),
-        meet_url=meet_url,
-        status=MeetingStatus.bot_joining,
+        recall_bot_id=metadata.adapter_session_id if adapter_type == "recall" else None,
+        adapter_type=adapter_type,
+        adapter_session_id=metadata.adapter_session_id,
+        meet_url=meet_url or "",
+        status=MeetingStatus.bot_joining if adapter_type == "recall" else MeetingStatus.connecting,
     )
     db.add(meeting)
     await db.commit()
@@ -133,7 +167,7 @@ async def join_meeting(
             "type": "meeting_status",
             "data": {
                 "session_id": str(meeting.id),
-                "status": "bot_joining",
+                "status": meeting.status.value,
                 "meet_url": meet_url,
             },
         })
@@ -142,6 +176,6 @@ async def join_meeting(
 
     return {
         "session_id": str(meeting.id),
-        "bot_id": bot_resp.get("id"),
-        "status": "bot_joining",
+        "bot_id": metadata.adapter_session_id,
+        "status": meeting.status.value,
     }

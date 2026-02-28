@@ -9,8 +9,8 @@ from src.config import settings
 from src.config.constants import CALENDAR_POLL_INTERVAL_S, CALENDAR_LOOKAHEAD_S
 from src.db.engine import async_session
 from src.models.tables import Workspace, CalendarEvent, MeetingSession, MeetingStatus
+from src.adapters import get_adapter
 from src.services.calendar_watcher import extract_meet_url
-from src.services.recall import create_bot
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,10 @@ async def poll_calendar_events():
         try:
             async with async_session() as db:
                 result = await db.execute(
-                    select(Workspace).where(Workspace.composio_entity_id.isnot(None))
+                    select(Workspace).where(
+                        Workspace.composio_entity_id.isnot(None),
+                        Workspace.has_google_calendar == True,  # noqa: E712
+                    )
                 )
                 workspaces = result.scalars().all()
 
@@ -100,21 +103,28 @@ async def _check_workspace_events(db: AsyncSession, workspace):
             db.add(cal_event)
             await db.flush()
 
-            # Create meeting session
+            # Create meeting session via adapter
             webhook_url = (
                 f"{settings.app_public_url}/webhooks/recall/"
                 f"{workspace.webhook_secret}/transcript"
             )
-            bot_resp = await create_bot(meet_url, webhook_url)
-            bot_id = bot_resp.get("id")
+            adapter = get_adapter("recall")
+            metadata = await adapter.start_session(
+                workspace_id=str(workspace.id),
+                meeting_url=meet_url,
+                webhook_url=webhook_url,
+            )
+            bot_id = metadata.adapter_session_id
             if not bot_id:
-                logger.error(f"Recall.ai returned no bot id for {meet_url}: {bot_resp}")
+                logger.error(f"Recall adapter returned no session id for {meet_url}")
                 continue
 
             meeting = MeetingSession(
                 workspace_id=workspace.id,
                 calendar_event_id=cal_event.id,
                 recall_bot_id=bot_id,
+                adapter_type="recall",
+                adapter_session_id=bot_id,
                 meet_url=meet_url,
                 status=MeetingStatus.bot_joining,
             )

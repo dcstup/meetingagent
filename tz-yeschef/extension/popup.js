@@ -1,6 +1,8 @@
 const statusEl = document.getElementById('status');
 const connectBtn = document.getElementById('connect-btn');
 const connectedBadge = document.getElementById('connected-badge');
+const connectCalBtn = document.getElementById('connect-cal-btn');
+const calConnectedBadge = document.getElementById('cal-connected-badge');
 const apiUrl = YESCHEF_API_URL;
 
 async function init() {
@@ -8,7 +10,7 @@ async function init() {
   await new Promise(r => chrome.storage.local.set({ api_url: apiUrl }, r));
 
   const data = await new Promise(r =>
-    chrome.storage.local.get(['workspace_id', 'overlay_token', 'has_google'], r)
+    chrome.storage.local.get(['workspace_id', 'overlay_token', 'has_google', 'has_google_calendar'], r)
   );
 
   if (data.has_google) {
@@ -16,6 +18,13 @@ async function init() {
     connectBtn.textContent = 'Reconnect Google';
     statusEl.textContent = 'Ready for meetings';
     document.getElementById('join-section').style.display = 'block';
+
+    if (data.has_google_calendar) {
+      calConnectedBadge.style.display = 'flex';
+      connectCalBtn.style.display = 'none';
+    } else {
+      connectCalBtn.style.display = 'block';
+    }
   } else if (data.workspace_id) {
     statusEl.textContent = 'Workspace ready — connect Google to start';
   }
@@ -65,10 +74,19 @@ connectBtn.addEventListener('click', async () => {
         const checkData = await checkResp.json();
         if (checkData.has_google) {
           clearInterval(pollInterval);
-          await new Promise(r => chrome.storage.local.set({ has_google: true }, r));
+          await new Promise(r => chrome.storage.local.set({
+            has_google: true,
+            has_google_calendar: checkData.has_google_calendar || false,
+          }, r));
           connectedBadge.style.display = 'flex';
           statusEl.textContent = 'Ready for meetings';
           connectBtn.textContent = 'Reconnect Google';
+          document.getElementById('join-section').style.display = 'block';
+          if (checkData.has_google_calendar) {
+            calConnectedBadge.style.display = 'flex';
+          } else {
+            connectCalBtn.style.display = 'block';
+          }
         }
       } catch (e) {}
     }, 3000);
@@ -113,6 +131,40 @@ joinBtn.addEventListener('click', async () => {
 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
   if (tabs[0]?.url?.includes('meet.google.com')) {
     meetUrlInput.value = tabs[0].url.split('?')[0];
+  }
+});
+
+// Connect Google Calendar
+connectCalBtn.addEventListener('click', async () => {
+  connectCalBtn.disabled = true;
+  statusEl.textContent = 'Starting Calendar connection...';
+
+  try {
+    const resp = await fetch(`${apiUrl}/api/workspace/oauth/google-calendar`, { method: 'POST' });
+    if (!resp.ok) throw new Error('Failed to start Calendar OAuth');
+    const { url } = await resp.json();
+
+    chrome.tabs.create({ url });
+    statusEl.textContent = 'Complete Calendar sign-in in the new tab';
+    connectCalBtn.disabled = false;
+
+    // Poll for completion
+    const pollInterval = setInterval(async () => {
+      try {
+        const checkResp = await fetch(`${apiUrl}/api/workspace/init`, { method: 'POST' });
+        const checkData = await checkResp.json();
+        if (checkData.has_google_calendar) {
+          clearInterval(pollInterval);
+          await new Promise(r => chrome.storage.local.set({ has_google_calendar: true }, r));
+          calConnectedBadge.style.display = 'flex';
+          connectCalBtn.style.display = 'none';
+          statusEl.textContent = 'Ready for meetings';
+        }
+      } catch (e) {}
+    }, 3000);
+  } catch (err) {
+    statusEl.textContent = `Error: ${err.message}`;
+    connectCalBtn.disabled = false;
   }
 });
 

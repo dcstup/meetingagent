@@ -12,6 +12,7 @@ from .base import Base
 class MeetingStatus(str, enum.Enum):
     pending = "pending"
     bot_joining = "bot_joining"
+    connecting = "connecting"  # adapter-agnostic alias for bot_joining
     active = "active"
     ended = "ended"
     failed = "failed"
@@ -35,6 +36,7 @@ class Workspace(Base):
     __tablename__ = "workspaces"
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     composio_entity_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    has_google_calendar: Mapped[bool] = mapped_column(Boolean, default=False, server_default='false')
     overlay_token: Mapped[str] = mapped_column(String(255))
     webhook_secret: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -62,6 +64,8 @@ class MeetingSession(Base):
     workspace_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("workspaces.id"))
     calendar_event_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("calendar_events.id"), nullable=True)
     recall_bot_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    adapter_type: Mapped[str | None] = mapped_column(String(32), default="recall", nullable=True)
+    adapter_session_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     meet_url: Mapped[str] = mapped_column(String(500))
     status: Mapped[MeetingStatus] = mapped_column(SAEnum(MeetingStatus), default=MeetingStatus.pending)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
