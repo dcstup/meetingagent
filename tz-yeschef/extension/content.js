@@ -94,8 +94,14 @@
   document.body.appendChild(iframe);
   document.body.appendChild(toggle);
 
+  // Guard against extension context invalidation (after extension reload/update)
+  function isContextValid() {
+    try { return !!chrome.runtime?.id; } catch { return false; }
+  }
+
   // Listen for toggle from background
   chrome.runtime.onMessage.addListener((msg) => {
+    if (!isContextValid()) return;
     if (msg.type === 'TOGGLE_OVERLAY') {
       toggle.click();
     }
@@ -103,6 +109,7 @@
 
   // Listen for messages from overlay iframe (verify origin)
   window.addEventListener('message', (event) => {
+    if (!isContextValid()) return;
     const extensionOrigin = new URL(chrome.runtime.getURL('')).origin;
     if (event.origin !== extensionOrigin && event.origin !== window.location.origin) return;
     if (event.data?.type === 'YESCHEF_CLOSE') {
