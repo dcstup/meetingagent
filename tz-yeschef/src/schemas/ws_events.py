@@ -27,5 +27,9 @@ class ExecutionStartedEvent(WSEvent):
     type: Literal["execution_started"] = "execution_started"
 
 
+class ProposalDroppedEvent(WSEvent):
+    type: Literal["proposal_dropped"] = "proposal_dropped"
+
+
 class ExecutionCompletedEvent(WSEvent):
     type: Literal["execution_completed"] = "execution_completed"

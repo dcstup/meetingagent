@@ -2,7 +2,7 @@ import uuid
 import enum
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Index, String, Text, Float, ForeignKey, DateTime, func, Enum as SAEnum
+from sqlalchemy import BigInteger, Boolean, Index, Integer, String, Text, Float, ForeignKey, DateTime, func, Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
@@ -21,6 +21,7 @@ class ProposalStatus(str, enum.Enum):
     pending = "pending"
     approved = "approved"
     dismissed = "dismissed"
+    dropped = "dropped"
 
 
 class ExecutionStatus(str, enum.Enum):
@@ -98,6 +99,12 @@ class Proposal(Base):
     embedding: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     status: Mapped[ProposalStatus] = mapped_column(SAEnum(ProposalStatus), default=ProposalStatus.pending)
     source_text: Mapped[str] = mapped_column(Text)
+    gate_scores: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    gate_avg_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    gate_readiness: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    gate_evidence_quote: Mapped[str | None] = mapped_column(Text, nullable=True)
+    gate_missing_info: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    gate_passed: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
