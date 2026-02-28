@@ -146,7 +146,7 @@ async def execute_gmail_draft(
             agent=agent,
         )
 
-        crew = Crew(agents=[agent], tasks=[task], verbose=False)
+        crew = Crew(agents=[agent], tasks=[task], verbose=False, tracing=True)
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(None, crew.kickoff)
 
@@ -215,7 +215,7 @@ async def execute_artifact(
             agent=agent,
         )
 
-        crew = Crew(agents=[agent], tasks=[task], verbose=False)
+        crew = Crew(agents=[agent], tasks=[task], verbose=False, tracing=True)
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(None, crew.kickoff)
 
@@ -285,7 +285,7 @@ async def execute_generic_draft(
             agent=agent,
         )
 
-        crew = Crew(agents=[agent], tasks=[task], verbose=False)
+        crew = Crew(agents=[agent], tasks=[task], verbose=False, tracing=True)
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(None, crew.kickoff)
 
