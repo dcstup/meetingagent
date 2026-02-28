@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="overlay.css">
+</head>
+<body>
+  <div class="yc-shell">
+    <header class="yc-header">
+      <img src="icons/icon-48.png" alt="YesChef" class="yc-header-logo">
+      <h1 class="yc-header-title">YesChef</h1>
+      <span id="yc-status" class="yc-header-status">Connecting...</span>
+      <button id="yc-close" class="yc-header-close">&times;</button>
+    </header>
+
+    <div class="yc-content">
+      <!-- Transcript Section -->
+      <section class="yc-section" id="transcript-section">
+        <h2 class="yc-section-title">Live Transcript</h2>
+        <div id="transcript-feed" class="yc-transcript-feed">
+          <p class="yc-empty">Waiting for meeting to start...</p>
+        </div>
+      </section>
+
+      <!-- Proposals Section -->
+      <section class="yc-section" id="proposals-section">
+        <h2 class="yc-section-title">Action Items</h2>
+        <div id="proposals-list" class="yc-proposals-list">
+          <p class="yc-empty">No proposals yet</p>
+        </div>
+      </section>
+
+      <!-- Results Section -->
+      <section class="yc-section" id="results-section" style="display:none">
+        <h2 class="yc-section-title">Results</h2>
+        <div id="results-list" class="yc-results-list"></div>
+      </section>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="overlay.js"></script>
+</body>
+</html>

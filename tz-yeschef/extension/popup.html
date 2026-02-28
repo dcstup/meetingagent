@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    /* Google Fonts @import removed: blocked by extension CSP. Using system fonts. */
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      width: 320px;
+      min-height: 400px;
+      background: #082848;
+      color: #FAFAFA;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 24px;
+    }
+
+    .logo {
+      width: 80px;
+      height: 80px;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #FAFAFA;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: #8A8A9A;
+      margin-bottom: 32px;
+      text-align: center;
+    }
+
+    .status {
+      font-size: 13px;
+      color: #C6A559;
+      margin-bottom: 24px;
+      text-align: center;
+      min-height: 20px;
+    }
+
+    .cta {
+      display: block;
+      width: 100%;
+      padding: 14px 24px;
+      background: #C6A559;
+      color: #082848;
+      border: none;
+      border-radius: 6px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+      transition: opacity 0.2s;
+    }
+    .cta:hover { opacity: 0.9; }
+    .cta:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .connected {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #2E5E4E;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 16px;
+    }
+    .connected .dot {
+      width: 8px; height: 8px;
+      background: #2E5E4E;
+      border-radius: 50%;
+    }
+
+    .settings {
+      margin-top: 24px;
+      width: 100%;
+    }
+    .settings label {
+      display: block;
+      font-size: 12px;
+      color: #8A8A9A;
+      margin-bottom: 4px;
+      margin-top: 12px;
+    }
+    .settings input {
+      width: 100%;
+      padding: 8px 12px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 4px;
+      color: #FAFAFA;
+      font-size: 13px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    .settings input::placeholder { color: #8A8A9A; }
+  </style>
+</head>
+<body>
+  <img class="logo" src="icons/icon-128.png" alt="YesChef">
+  <h1>YesChef</h1>
+  <p class="subtitle">Real-time meeting action items</p>
+
+  <div id="status" class="status"></div>
+
+  <div id="connected-badge" class="connected" style="display:none">
+    <span class="dot"></span>
+    <span>Google Connected</span>
+  </div>
+
+  <button id="connect-btn" class="cta" style="margin-top:24px">Connect Google</button>
+
+  <div id="join-section" class="settings" style="display:none">
+    <label>Google Meet URL</label>
+    <input type="text" id="meet-url" placeholder="https://meet.google.com/abc-defg-hij">
+    <button id="join-btn" class="cta" style="margin-top:12px">Send YesChef Bot</button>
+    <div id="join-status" class="status" style="margin-top:8px"></div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
