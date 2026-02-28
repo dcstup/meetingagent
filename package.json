@@ -1,17 +1,11 @@
 {
-  "name": "meeting-agent",
+  "name": "yeschef-platform",
   "private": true,
-  "version": "0.1.0",
-  "workspaces": [
-    "apps/*"
-  ],
+  "workspaces": ["apps/*", "packages/*"],
   "scripts": {
-    "dev": "concurrently \"npm run dev --workspace @meeting-agent/server\" \"npm run dev --workspace @meeting-agent/web\"",
-    "dev:server": "npm run dev --workspace @meeting-agent/server",
-    "dev:web": "npm run dev --workspace @meeting-agent/web",
-    "build": "npm run build --workspace @meeting-agent/server && npm run build --workspace @meeting-agent/web"
-  },
-  "devDependencies": {
-    "concurrently": "^9.1.2"
+    "dev:api": "cd apps/api && uvicorn src.api.app:app --reload --port 8000",
+    "dev:dashboard": "cd apps/dashboard && npm run dev",
+    "test:api": "cd apps/api && .venv/bin/python -m pytest tests/ -q",
+    "lint:api": "cd apps/api && .venv/bin/ruff check src/"
   }
 }
