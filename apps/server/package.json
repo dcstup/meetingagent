@@ -1,0 +1,26 @@
+{
+  "name": "@meeting-agent/server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.1.0",
+    "@fastify/websocket": "^11.0.2",
+    "@supabase/supabase-js": "^2.58.0",
+    "dotenv": "^17.2.3",
+    "fastify": "^5.6.1",
+    "openai": "^6.7.0",
+    "ws": "^8.18.3",
+    "zod": "^4.1.11"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}

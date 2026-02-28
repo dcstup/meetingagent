@@ -1,0 +1,17 @@
+{
+  "name": "meeting-agent",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace @meeting-agent/server\" \"npm run dev --workspace @meeting-agent/web\"",
+    "dev:server": "npm run dev --workspace @meeting-agent/server",
+    "dev:web": "npm run dev --workspace @meeting-agent/web",
+    "build": "npm run build --workspace @meeting-agent/server && npm run build --workspace @meeting-agent/web"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
