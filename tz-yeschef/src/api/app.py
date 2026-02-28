@@ -34,12 +34,14 @@ def create_app() -> FastAPI:
     )
 
     from src.api.routes_health import router as health_router
+    from src.api.routes_ingest import router as ingest_router
     from src.api.routes_proposals import router as proposals_router
     from src.api.routes_webhooks import router as webhooks_router
     from src.api.routes_ws import router as ws_router
     from src.api.routes_workspace import router as workspace_router
 
     app.include_router(health_router)
+    app.include_router(ingest_router)
     app.include_router(proposals_router)
     app.include_router(webhooks_router)
     app.include_router(ws_router)
