@@ -1,0 +1,6 @@
+{
+  "name": "@yeschef/api-types",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Generated TypeScript types from OpenAPI spec"
+}

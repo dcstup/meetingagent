@@ -1,0 +1,9 @@
+{
+  "name": "@yeschef/dashboard",
+  "private": true,
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "echo 'Dashboard not yet implemented'",
+    "build": "echo 'Dashboard not yet implemented'"
+  }
+}

@@ -2,7 +2,7 @@
 __pycache__/
 *.pyc
 *.pyo
-.venv/
+apps/api/.venv/
 *.egg-info/
 
 # Testing
@@ -15,6 +15,12 @@ __pycache__/
 
 # Codex local configuration
 .codex/
+
+# Node
+node_modules/
+
+# Turbo
+.turbo/
 
 # Claude Flow runtime data (keep config, ignore ephemeral)
 .claude-flow/daemon.pid
