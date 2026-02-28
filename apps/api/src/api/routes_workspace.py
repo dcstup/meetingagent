@@ -122,7 +122,7 @@ async def join_meeting(
 ):
     """Manually trigger a bot to join a Google Meet URL."""
     from src.adapters import get_adapter
-    from src.models.tables import MeetingSession, MeetingStatus
+    from src.models.tables import MeetingSession, MeetingStatus  # noqa: used below
 
     body = await request.json()
     meet_url = body.get("meet_url", "").strip()
@@ -135,6 +135,22 @@ async def join_meeting(
     workspace = result.scalar_one_or_none()
     if not workspace:
         raise HTTPException(status_code=404, detail="No workspace found")
+
+    # Dedup: return existing session if a bot is already joining/active for this URL
+    existing = await db.execute(
+        select(MeetingSession).where(
+            MeetingSession.workspace_id == workspace.id,
+            MeetingSession.meet_url == meet_url,
+            MeetingSession.status.in_([MeetingStatus.bot_joining, MeetingStatus.connecting, MeetingStatus.active]),
+        )
+    )
+    existing_session = existing.scalar_one_or_none()
+    if existing_session:
+        return {
+            "session_id": str(existing_session.id),
+            "bot_id": existing_session.adapter_session_id or existing_session.recall_bot_id,
+            "status": existing_session.status.value,
+        }
 
     webhook_url = (
         f"{settings.app_public_url}/webhooks/recall/"

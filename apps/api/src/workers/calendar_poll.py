@@ -80,11 +80,26 @@ async def _check_workspace_events(db: AsyncSession, workspace):
 
             google_event_id = event.get("id", "")
 
-            # Check if already tracked
+            # Check if already tracked by calendar event ID
             existing = await db.execute(
                 select(CalendarEvent).where(CalendarEvent.google_event_id == google_event_id)
             )
             if existing.scalar_one_or_none():
+                continue
+
+            # Also check if a bot is already joining/active for this meet URL
+            existing_session = await db.execute(
+                select(MeetingSession).where(
+                    MeetingSession.workspace_id == workspace.id,
+                    MeetingSession.meet_url == meet_url,
+                    MeetingSession.status.in_([
+                        MeetingStatus.bot_joining,
+                        MeetingStatus.connecting,
+                        MeetingStatus.active,
+                    ]),
+                )
+            )
+            if existing_session.scalar_one_or_none():
                 continue
 
             # Create calendar event record
