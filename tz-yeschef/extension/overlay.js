@@ -8,15 +8,23 @@
   const transcriptFeed = document.getElementById('transcript-feed');
   const proposalsList = document.getElementById('proposals-list');
 
-  async function init() {
+  async function init(retries = 3) {
     // Get config from extension storage, with YESCHEF_API_URL as fallback
     config = await new Promise(resolve => {
       chrome.storage.local.get(['workspace_id', 'overlay_token', 'api_url'], resolve);
     });
     config.api_url = config.api_url || (typeof YESCHEF_API_URL !== 'undefined' ? YESCHEF_API_URL : '');
 
+    if (!config.workspace_id && retries > 0) {
+      // Storage may not be populated yet — retry after short delay
+      statusEl.textContent = 'Loading config...';
+      setTimeout(() => init(retries - 1), 1500);
+      return;
+    }
+
     if (!config.api_url || !config.workspace_id) {
-      statusEl.textContent = 'Not configured';
+      statusEl.textContent = 'Not configured — open YesChef popup to connect';
+      console.warn('YesChef overlay: missing config', { api_url: !!config.api_url, workspace_id: !!config.workspace_id });
       return;
     }
 

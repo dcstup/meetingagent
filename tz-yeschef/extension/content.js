@@ -5,7 +5,7 @@
   // Toggle button
   const toggle = document.createElement('button');
   toggle.id = 'yeschef-toggle';
-  toggle.innerHTML = '<img src="' + chrome.runtime.getURL('icons/icon-48.png') + '" style="width:24px;height:24px">';
+  toggle.innerHTML = '<img src="' + chrome.runtime.getURL('logo.png') + '" style="width:24px;height:24px;border-radius:4px">';
   toggle.style.cssText = `
     position: fixed;
     top: 80px;

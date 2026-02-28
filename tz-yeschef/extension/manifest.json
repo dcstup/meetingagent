@@ -30,7 +30,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["overlay.html", "config.js"],
+      "resources": ["overlay.html", "overlay.css", "overlay.js", "config.js", "logo.png", "icons/*"],
       "matches": ["https://meet.google.com/*"]
     }
   ]
