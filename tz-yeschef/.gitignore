@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.egg-info/
+
+# Testing
+.pytest_cache/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Codex local configuration
+.codex/
+
+# Claude Flow runtime data (keep config, ignore ephemeral)
+.claude-flow/daemon.pid
+.claude-flow/daemon.log
+.claude-flow/daemon-state.json
+.claude-flow/data/
+.claude-flow/logs/
+.claude-flow/sessions/
+.claude-flow/metrics/
+.claude-flow/security/
+
+# Swarm runtime
+.swarm/
