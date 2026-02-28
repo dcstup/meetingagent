@@ -71,6 +71,7 @@ For each action item, determine:
 - body: the full action item description
 - recipient: email recipient if gmail_draft, null otherwise
 - confidence: 0.0-1.0 how confident this is a real action item
+- readiness: 1-5 scale assessing whether the conversation topic has resolved. 5=fully resolved/moved on, 1=still actively debating. Only mark 4-5 if the group has clearly agreed or moved past the topic.
 - dedupe_key: a short canonical key for deduplication (e.g. "email-bob-proposal")
 
 Return a JSON array of action items. If none found, return [].

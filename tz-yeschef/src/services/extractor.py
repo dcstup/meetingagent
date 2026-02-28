@@ -63,6 +63,11 @@ def filter_proposals(items: list[dict]) -> list[dict]:
         if confidence < CONFIDENCE_THRESHOLD_DROP:
             continue
 
+        # Drop items where readiness < 3 (topic still being debated)
+        readiness = item.get("readiness")
+        if readiness is not None and readiness < 3:
+            continue
+
         # Check for action verb in title
         title = item.get("title", "").lower()
         has_action_verb = any(verb in title.split() for verb in ACTION_VERBS)
