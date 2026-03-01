@@ -10,5 +10,5 @@ EXECUTOR_MODEL = "gemini/gemini-3-pro-preview"
 EMBEDDING_MODEL = "Qwen/Qwen3-Embedding-0.6B"
 DEEPINFRA_BASE_URL = "https://api.deepinfra.com/v1/openai"
 GATE_MODEL = "gpt-oss-120b"
-GATE_AVG_THRESHOLD = 3.0
-GATE_READINESS_THRESHOLD = 2
+GATE_AVG_THRESHOLD = 2.0
+GATE_READINESS_THRESHOLD = 1
