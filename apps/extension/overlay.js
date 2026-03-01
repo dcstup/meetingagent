@@ -178,7 +178,7 @@
     card.id = `proposal-${data.id}`;
 
     card.innerHTML = `
-      <div class="yc-proposal-type">${data.action_type === 'gmail_draft' ? '\u2709 Gmail Draft' : data.action_type === 'design_prototype' ? '\uD83C\uDFA8 Prototype' : data.action_type === 'calendar_action' ? '\uD83D\uDCC5 Calendar' : data.action_type === 'research_query' ? '\uD83D\uDD0D Research' : data.action_type === 'general_agent' ? '\uD83E\uDD16 Agent' : '\uD83D\uDCDD Task'}</div>
+      <div class="yc-proposal-type">${data.action_type === 'gmail_draft' ? '\u2709 Gmail Draft' : data.action_type === 'design_prototype' ? '\uD83C\uDFA8 Prototype' : data.action_type === 'calendar_action' ? '\uD83D\uDCC5 Calendar' : data.action_type === 'research_query' ? '\uD83D\uDD0D Research' : data.action_type === 'linear_ticket' ? '\uD83C\uDFAF Linear Ticket' : data.action_type === 'general_agent' ? '\uD83E\uDD16 Agent' : '\uD83D\uDCDD Task'}</div>
       <div class="yc-proposal-title">${escapeHtml(data.title)}</div>
       <div class="yc-proposal-body">${escapeHtml(data.body)}</div>
       ${data.recipient ? `<div class="yc-proposal-recipient">To: ${escapeHtml(data.recipient)}</div>` : ''}
@@ -249,6 +249,14 @@
         } else {
           const fallback = result.result || result.body || 'Research complete (no report available)';
           inlineContent = `<details class="yc-inline-draft"><summary>Show Report</summary><div class="yc-inline-draft-text">${escapeHtml(fallback)}</div></details>`;
+        }
+      } else if (result.type === 'linear_ticket') {
+        const ticketText = result.result || '';
+        const linearMatch = ticketText.match(/https:\/\/linear\.app\/[^\s)]+/);
+        if (linearMatch) {
+          inlineContent = `<a class="yc-result-link" href="${escapeHtml(linearMatch[0])}" target="_blank">Open in Linear \u2192</a>`;
+        } else {
+          inlineContent = `<details class="yc-inline-draft"><summary>Show Result</summary><div class="yc-inline-draft-text">${escapeHtml(ticketText)}</div></details>`;
         }
       } else if (result.type === 'calendar_action') {
         const calText = result.body || result.result;

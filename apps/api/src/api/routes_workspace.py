@@ -26,6 +26,7 @@ async def init_workspace(db: AsyncSession = Depends(get_db)):
             "overlay_token": workspace.overlay_token,
             "has_google": workspace.composio_entity_id is not None,
             "has_google_calendar": workspace.has_google_calendar,
+            "has_linear": workspace.has_linear,
         }
 
     workspace = Workspace(
@@ -45,6 +46,7 @@ async def init_workspace(db: AsyncSession = Depends(get_db)):
         "overlay_token": workspace.overlay_token,
         "has_google": False,
         "has_google_calendar": False,
+        "has_linear": False,
     }
 
 
@@ -134,6 +136,39 @@ async def oauth_callback(request: Request, db: AsyncSession = Depends(get_db)):
     await db.commit()
 
     return {"status": "connected", "message": "Google account connected successfully"}
+
+
+@router.post("/workspace/oauth/linear")
+async def oauth_linear(db: AsyncSession = Depends(get_db)):
+    """Initiate Linear OAuth via Composio."""
+    result = await db.execute(select(Workspace).limit(1))
+    workspace = result.scalar_one_or_none()
+    if not workspace:
+        raise HTTPException(status_code=404, detail="No workspace found")
+    if not workspace.composio_entity_id:
+        raise HTTPException(status_code=400, detail="Connect Google first")
+
+    entity_id = str(workspace.id)
+    redirect_url = f"{settings.app_public_url}/api/workspace/oauth/linear/callback"
+
+    from src.services.composio_client import initiate_linear_oauth
+    auth_url = initiate_linear_oauth(entity_id, redirect_url)
+    return {"url": auth_url}
+
+
+@router.get("/workspace/oauth/linear/callback")
+async def oauth_linear_callback(request: Request, db: AsyncSession = Depends(get_db)):
+    """Handle Linear OAuth callback."""
+    result = await db.execute(select(Workspace).limit(1))
+    workspace = result.scalar_one_or_none()
+    if not workspace:
+        raise HTTPException(status_code=404, detail="No workspace found")
+
+    workspace.has_linear = True
+    await db.commit()
+
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/api/workspace/oauth/success")
 
 
 @router.get("/workspace/oauth/success")

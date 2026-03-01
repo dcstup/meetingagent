@@ -284,6 +284,7 @@ async def _run_execution(
         execute_general_agent,
         execute_research_query,
         execute_calendar_action,
+        execute_linear_ticket,
     )
 
     async with async_session() as db:
@@ -321,6 +322,13 @@ async def _run_execution(
                 )
             elif action_type == "research_query":
                 exec_result = await execute_research_query(
+                    title=title,
+                    body=body,
+                    session_id=session_id,
+                )
+            elif action_type == "linear_ticket":
+                exec_result = await execute_linear_ticket(
+                    entity_id=entity_id,
                     title=title,
                     body=body,
                     session_id=session_id,

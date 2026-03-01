@@ -444,6 +444,92 @@ async def execute_research_query(
         }
 
 
+async def _get_linear_tools(entity_id: str) -> list:
+    """Get CrewAI-wrapped Linear tools from Composio for a specific user."""
+    def _fetch():
+        sdk = Composio(
+            provider=CrewAIProvider(),
+            api_key=settings.composio_api_key,
+        )
+        return sdk.tools.get(user_id=entity_id, toolkits=["linear"])
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, _fetch)
+
+
+async def execute_linear_ticket(
+    entity_id: str,
+    title: str,
+    body: str,
+    session_id: str | None = None,
+) -> dict:
+    """Create a Linear ticket using CrewAI + Composio, with RAG context from conversation."""
+    if not entity_id:
+        return {"status": "failed", "type": "linear_ticket", "error": "Linear not connected. Please connect your Linear account first."}
+    try:
+        linear_tools = await _get_linear_tools(entity_id)
+        if not linear_tools:
+            return {
+                "status": "failed",
+                "type": "linear_ticket",
+                "error": "No Linear tools available. Check Composio connection.",
+            }
+
+        context = ""
+        if session_id:
+            context = await _get_conversation_context(session_id, f"{title} {body}")
+
+        context_block = ""
+        if context:
+            context_block = (
+                f"\n\nRelevant meeting context (use to inform ticket details):\n"
+                f"---\n{context}\n---"
+            )
+
+        agent = Agent(
+            role="Linear Project Manager",
+            goal="Create well-structured Linear tickets with clear titles, descriptions, and appropriate labels based on meeting context.",
+            backstory=(
+                "You are a project management specialist who creates clear, actionable Linear tickets. "
+                "You use meeting transcript context to write accurate descriptions with acceptance criteria."
+            ),
+            tools=linear_tools,
+            llm=EXECUTOR_MODEL,
+            verbose=False,
+        )
+
+        task = Task(
+            description=(
+                f"Create a Linear ticket:\n"
+                f"Title: {title}\n"
+                f"Description: {body}"
+                f"{context_block}\n\n"
+                f"Use the meeting context to make the ticket specific and grounded. "
+                f"Include the ticket URL in your response. "
+                f"Do not fabricate details not present in the context."
+            ),
+            expected_output="Confirmation that the Linear ticket was created, including the ticket URL.",
+            agent=agent,
+        )
+
+        crew = Crew(agents=[agent], tasks=[task], verbose=False, tracing=False)
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, crew.kickoff)
+
+        return {
+            "status": "success",
+            "type": "linear_ticket",
+            "title": title,
+            "result": str(result),
+        }
+    except Exception as e:
+        logger.error(f"Linear ticket execution failed: {e}", exc_info=True)
+        return {
+            "status": "failed",
+            "type": "linear_ticket",
+            "error": str(e),
+        }
+
+
 async def execute_calendar_action(
     entity_id: str | None,
     title: str,

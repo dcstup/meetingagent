@@ -69,6 +69,7 @@ cd apps/api && uv run pytest tests/integration/ -q
 
 - ALWAYS run tests after making code changes
 - ALWAYS verify tests pass before committing
+- **ALWAYS run tests (unit, integration, etc.) in subagents, NEVER in the main session** — use `Agent` tool with `subagent_type: "tester"` to run tests so the main context stays clean for orchestration
 
 ## Code Standards
 
@@ -150,6 +151,33 @@ npx @claude-flow/cli@latest memory store --key "pattern-name" --value "descripti
 npx @claude-flow/cli@latest memory search --query "search terms" --namespace patterns
 ```
 
+## Deployment (Railway) — CRITICAL
+
+**There is NO automatic deployment. Git pushes do NOT trigger builds.** Railway is not connected to GitHub for this project. Deployment is manual via `railway up`.
+
+**YOU (the Claude agent) are responsible for deploying after code changes that need to go live.** Do not assume pushing to git deploys anything. After committing and pushing:
+
+1. Load the `/use-railway` skill
+2. Run `cd apps/api && railway up` to deploy
+3. Verify the deploy succeeded (check logs, health endpoint)
+4. Confirm alembic migrations ran if schema changed
+
+```bash
+# Deploy from apps/api/ directory (the Railway service root)
+cd apps/api && railway up
+
+# Check deploy status
+railway status
+
+# View logs
+railway logs --tail 50
+```
+
+- **Start command** (in `railway.toml`): `alembic upgrade head && uvicorn src.api.app:app --host 0.0.0.0 --port ${PORT:-8000}`
+- Alembic migrations run automatically on every deploy via the start command
+- All migrations must be idempotent (`IF NOT EXISTS`, `IF NOT EXISTS`) because prod schema may already have columns from manual SQL
+- Railway project: `yeschef` in `Meshi Trial` workspace
+
 ## Autonomous Operation Guidelines
 
 To minimize human intervention:
@@ -171,7 +199,7 @@ To minimize human intervention:
 | Transcription | Recall.ai (bot) + DeepGram (stub) | Adapter pattern |
 | Database | PostgreSQL + asyncpg | Alembic migrations |
 | Extension | Chrome MV3 | Content script → iframe overlay |
-| Deployment | Railway (Nixpacks) | Root dir: apps/api/ |
+| Deployment | Railway (Nixpacks) | **MANUAL deploy only — see Deployment section below** |
 | Monorepo | Turborepo | Workspaces in apps/ + packages/ |
 
 ## Key File Map (relative to apps/api/)

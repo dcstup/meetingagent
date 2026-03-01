@@ -335,3 +335,119 @@ class TestExecuteGeneralAgent:
         assert result["type"] == "general_agent"
         assert "artifact_html" not in result
         assert result["result"] == "The answer is 42. No HTML here."
+
+
+@pytest.mark.asyncio
+class TestExecuteLinearTicket:
+
+    async def test_success_returns_result(self):
+        mock_tools = [MagicMock()]
+        mock_crew_result = MagicMock()
+        mock_crew_result.__str__ = lambda _: "Created ticket https://linear.app/team/ISS-123"
+
+        with patch("src.services.executor._get_linear_tools", new_callable=AsyncMock, return_value=mock_tools), \
+             patch("src.services.executor._get_conversation_context", new_callable=AsyncMock, return_value=""), \
+             patch("src.services.executor.Agent") as MockAgent, \
+             patch("src.services.executor.Task") as MockTask, \
+             patch("src.services.executor.Crew") as MockCrew:
+            MockCrew.return_value.kickoff.return_value = mock_crew_result
+
+            from src.services.executor import execute_linear_ticket
+            result = await execute_linear_ticket(
+                entity_id="test-entity",
+                title="Fix auth timeout bug",
+                body="Users experiencing session timeouts after 30 minutes.",
+            )
+
+        assert result["status"] == "success"
+        assert result["type"] == "linear_ticket"
+        assert result["title"] == "Fix auth timeout bug"
+        assert "linear.app" in result["result"]
+
+    async def test_no_entity_returns_failure(self):
+        from src.services.executor import execute_linear_ticket
+        result = await execute_linear_ticket(
+            entity_id=None,
+            title="Test ticket",
+            body="Test body",
+        )
+
+        assert result["status"] == "failed"
+        assert result["type"] == "linear_ticket"
+        assert "not connected" in result["error"].lower()
+
+    async def test_no_tools_returns_failure(self):
+        with patch("src.services.executor._get_linear_tools", new_callable=AsyncMock, return_value=[]):
+            from src.services.executor import execute_linear_ticket
+            result = await execute_linear_ticket(
+                entity_id="test-entity",
+                title="Test ticket",
+                body="Test body",
+            )
+
+        assert result["status"] == "failed"
+        assert "No Linear tools" in result["error"]
+
+    async def test_crew_exception_returns_failure(self):
+        mock_tools = [MagicMock()]
+
+        with patch("src.services.executor._get_linear_tools", new_callable=AsyncMock, return_value=mock_tools), \
+             patch("src.services.executor._get_conversation_context", new_callable=AsyncMock, return_value=""), \
+             patch("src.services.executor.Agent"), \
+             patch("src.services.executor.Task"), \
+             patch("src.services.executor.Crew") as MockCrew:
+            MockCrew.return_value.kickoff.side_effect = RuntimeError("Linear API error")
+
+            from src.services.executor import execute_linear_ticket
+            result = await execute_linear_ticket(
+                entity_id="test-entity",
+                title="Test ticket",
+                body="Test body",
+            )
+
+        assert result["status"] == "failed"
+        assert "Linear API error" in result["error"]
+
+    async def test_with_rag_context(self):
+        mock_tools = [MagicMock()]
+        mock_crew_result = MagicMock()
+        mock_crew_result.__str__ = lambda _: "Ticket created with context"
+
+        with patch("src.services.executor._get_linear_tools", new_callable=AsyncMock, return_value=mock_tools), \
+             patch("src.services.executor._get_conversation_context", new_callable=AsyncMock, return_value="Tommy: The auth bug causes timeouts") as mock_ctx, \
+             patch("src.services.executor.Agent"), \
+             patch("src.services.executor.Task") as MockTask, \
+             patch("src.services.executor.Crew") as MockCrew:
+            MockCrew.return_value.kickoff.return_value = mock_crew_result
+
+            from src.services.executor import execute_linear_ticket
+            result = await execute_linear_ticket(
+                entity_id="test-entity",
+                title="Fix auth bug",
+                body="Auth timeout issue",
+                session_id="session-xyz",
+            )
+
+        assert result["status"] == "success"
+        mock_ctx.assert_called_once_with("session-xyz", "Fix auth bug Auth timeout issue")
+        task_desc = MockTask.call_args[1]["description"]
+        assert "meeting context" in task_desc
+        assert "auth bug causes timeouts" in task_desc
+
+
+@pytest.mark.asyncio
+class TestGetLinearTools:
+
+    async def test_calls_composio_with_correct_params(self):
+        mock_sdk = MagicMock()
+        mock_sdk.tools.get.return_value = [MagicMock()]
+
+        with patch("src.services.executor.Composio", return_value=mock_sdk):
+            from src.services.executor import _get_linear_tools
+            tools = await _get_linear_tools("entity-abc")
+
+        mock_sdk.tools.get.assert_called_once_with(
+            user_id="entity-abc",
+            toolkits=["linear"],
+        )
+        assert len(tools) == 1

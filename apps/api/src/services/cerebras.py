@@ -71,13 +71,13 @@ For each action item, determine:
   "design_prototype" if it involves building, creating, designing, prototyping, mocking up, or visualizing ANYTHING — websites, homepages, landing pages, apps, dashboards, presentations, diagrams, charts, reports with visuals, UI layouts, wireframes, or any creative/visual deliverable. When in doubt about whether something should be built or just described, prefer design_prototype. Examples: "build the homepage", "create a mockup", "make a landing page", "design the dashboard", "put together a presentation", "visualize the data", "confirmed on the homepage" (implies it needs to be built), "Shanghai Cheap Food homepage" (a named deliverable that needs to be built). Trigger words: homepage, landing page, website, app, dashboard, mockup, prototype, design, UI, wireframe, layout, page, screen, visualization, diagram, chart, presentation, deck, report with visuals, interface, component, template, brand kit, style guide, logo, banner, graphic.
   "calendar_action" if it ONLY involves scheduling, creating, modifying, or canceling calendar events or meetings (e.g. "schedule a meeting", "block off time", "move the standup to 3pm"),
   "gmail_draft" if it ONLY involves sending or drafting an email to a specific person,
+  "linear_ticket" if it involves creating, updating, or triaging tickets, issues, bugs, or task tracking in a project management tool (e.g. "create a ticket for the auth bug", "file an issue for the login crash", "add a task to track the refactor"),
   "research_query" if someone asks an open question needing research, fact-checking, or external data lookup (e.g. "what's the market size for X?", "look into competitors", "find out about Y"),
   "general_agent" for any other actionable task that doesn't fit the above categories
 - title: short title (max 80 chars)
 - body: the full action item description
 - recipient: email recipient if gmail_draft, null otherwise
 - confidence: 0.0-1.0 how confident this is a real action item
-- readiness: 1-5 scale assessing whether the conversation topic has resolved. 5=fully resolved/moved on, 1=still actively debating. Only mark 4-5 if the group has clearly agreed or moved past the topic.
 - dedupe_key: a short canonical key for deduplication (e.g. "email-bob-proposal")
 
 Return a JSON array of action items. If none found, return [].

@@ -3,6 +3,8 @@ const connectBtn = document.getElementById('connect-btn');
 const connectedBadge = document.getElementById('connected-badge');
 const connectCalBtn = document.getElementById('connect-cal-btn');
 const calConnectedBadge = document.getElementById('cal-connected-badge');
+const connectLinearBtn = document.getElementById('connect-linear-btn');
+const linearConnectedBadge = document.getElementById('linear-connected-badge');
 const apiUrl = YESCHEF_API_URL;
 
 async function init() {
@@ -10,7 +12,7 @@ async function init() {
   await new Promise(r => chrome.storage.local.set({ api_url: apiUrl }, r));
 
   const data = await new Promise(r =>
-    chrome.storage.local.get(['workspace_id', 'overlay_token', 'has_google', 'has_google_calendar'], r)
+    chrome.storage.local.get(['workspace_id', 'overlay_token', 'has_google', 'has_google_calendar', 'has_linear'], r)
   );
 
   if (data.has_google) {
@@ -24,6 +26,13 @@ async function init() {
       connectCalBtn.style.display = 'none';
     } else {
       connectCalBtn.style.display = 'block';
+    }
+
+    if (data.has_linear) {
+      linearConnectedBadge.style.display = 'flex';
+      connectLinearBtn.style.display = 'none';
+    } else {
+      connectLinearBtn.style.display = 'block';
     }
   } else if (data.workspace_id) {
     statusEl.textContent = 'Workspace ready — connect Google to start';
@@ -86,6 +95,11 @@ connectBtn.addEventListener('click', async () => {
             calConnectedBadge.style.display = 'flex';
           } else {
             connectCalBtn.style.display = 'block';
+          }
+          if (checkData.has_linear) {
+            linearConnectedBadge.style.display = 'flex';
+          } else {
+            connectLinearBtn.style.display = 'block';
           }
         }
       } catch (e) {}
@@ -165,6 +179,39 @@ connectCalBtn.addEventListener('click', async () => {
   } catch (err) {
     statusEl.textContent = `Error: ${err.message}`;
     connectCalBtn.disabled = false;
+  }
+});
+
+// Connect Linear
+connectLinearBtn.addEventListener('click', async () => {
+  connectLinearBtn.disabled = true;
+  statusEl.textContent = 'Starting Linear connection...';
+
+  try {
+    const resp = await fetch(`${apiUrl}/api/workspace/oauth/linear`, { method: 'POST' });
+    if (!resp.ok) throw new Error('Failed to start Linear OAuth');
+    const { url } = await resp.json();
+
+    chrome.tabs.create({ url });
+    statusEl.textContent = 'Complete Linear sign-in in the new tab';
+    connectLinearBtn.disabled = false;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const checkResp = await fetch(`${apiUrl}/api/workspace/init`, { method: 'POST' });
+        const checkData = await checkResp.json();
+        if (checkData.has_linear) {
+          clearInterval(pollInterval);
+          await new Promise(r => chrome.storage.local.set({ has_linear: true }, r));
+          linearConnectedBadge.style.display = 'flex';
+          connectLinearBtn.style.display = 'none';
+          statusEl.textContent = 'Ready for meetings';
+        }
+      } catch (e) {}
+    }, 3000);
+  } catch (err) {
+    statusEl.textContent = `Error: ${err.message}`;
+    connectLinearBtn.disabled = false;
   }
 });
 
