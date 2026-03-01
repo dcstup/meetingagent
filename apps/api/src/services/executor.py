@@ -8,7 +8,7 @@ from crewai import Agent, Task, Crew
 from sqlalchemy import select
 
 from src.config import settings
-from src.config.constants import EXECUTOR_MODEL
+from src.config.constants import EXECUTOR_MODEL, VIBE_CODER_MODEL
 from src.services.web_tools import get_web_tools
 
 logger = logging.getLogger(__name__)
@@ -236,7 +236,7 @@ async def execute_design_prototype(
                 "a full HTML page with inline CSS/JS, a Mermaid diagram, or an SVG graphic."
             ),
             tools=[],
-            llm=EXECUTOR_MODEL,
+            llm=VIBE_CODER_MODEL,
             verbose=False,
         )
 
