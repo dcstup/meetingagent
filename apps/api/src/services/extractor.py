@@ -72,10 +72,10 @@ def filter_proposals(items: list[dict]) -> tuple[list[dict], list[dict]]:
             filtered_out.append(item)
             continue
 
-        # Drop items where readiness < 1 (topic still being debated)
+        # Drop items where readiness <= 1 (topic still being debated)
         readiness = item.get("readiness")
-        if readiness is not None and readiness < 1:
-            item["filter_reason"] = f"readiness {readiness} < 1 (still being debated)"
+        if readiness is not None and readiness <= 1:
+            item["filter_reason"] = f"readiness {readiness} <= 1 (still being debated)"
             filtered_out.append(item)
             continue
 

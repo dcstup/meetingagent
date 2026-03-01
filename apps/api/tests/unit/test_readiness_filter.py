@@ -11,12 +11,13 @@ def test_readiness_0_dropped():
     assert len(filtered) == 1
 
 
-def test_readiness_1_kept():
+def test_readiness_1_dropped():
     items = [
         {"title": "Draft proposal", "body": "draft it", "confidence": 0.95, "readiness": 1},
     ]
-    result, _ = filter_proposals(items)
-    assert len(result) == 1
+    result, filtered = filter_proposals(items)
+    assert len(result) == 0
+    assert len(filtered) == 1
 
 
 def test_readiness_2_kept():
