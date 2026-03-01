@@ -15,32 +15,35 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # Use raw SQL with IF NOT EXISTS so this migration is safe to re-run on a
+    # database where some or all columns were applied manually before Alembic
+    # tracking was set up.
+
     # workspaces
-    op.add_column(
-        "workspaces",
-        sa.Column("has_google_calendar", sa.Boolean(), server_default="false", nullable=False),
+    op.execute(
+        "ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS has_google_calendar BOOLEAN NOT NULL DEFAULT false"
     )
 
     # meeting_sessions — adapter columns
-    op.add_column(
-        "meeting_sessions",
-        sa.Column("adapter_type", sa.String(32), server_default="recall", nullable=True),
+    op.execute(
+        "ALTER TABLE meeting_sessions ADD COLUMN IF NOT EXISTS adapter_type VARCHAR(32) DEFAULT 'recall'"
     )
-    op.add_column(
-        "meeting_sessions",
-        sa.Column("adapter_session_id", sa.String(255), nullable=True),
+    op.execute(
+        "ALTER TABLE meeting_sessions ADD COLUMN IF NOT EXISTS adapter_session_id VARCHAR(255)"
     )
 
     # proposals — gate scoring columns
-    op.add_column("proposals", sa.Column("gate_scores", sa.JSON(), nullable=True))
-    op.add_column("proposals", sa.Column("gate_avg_score", sa.Float(), nullable=True))
-    op.add_column("proposals", sa.Column("gate_readiness", sa.Integer(), nullable=True))
-    op.add_column("proposals", sa.Column("gate_evidence_quote", sa.Text(), nullable=True))
-    op.add_column("proposals", sa.Column("gate_missing_info", sa.JSON(), nullable=True))
-    op.add_column("proposals", sa.Column("gate_passed", sa.Boolean(), nullable=True))
+    op.execute("ALTER TABLE proposals ADD COLUMN IF NOT EXISTS gate_scores JSONB")
+    op.execute("ALTER TABLE proposals ADD COLUMN IF NOT EXISTS gate_avg_score FLOAT")
+    op.execute("ALTER TABLE proposals ADD COLUMN IF NOT EXISTS gate_readiness INTEGER")
+    op.execute("ALTER TABLE proposals ADD COLUMN IF NOT EXISTS gate_evidence_quote TEXT")
+    op.execute("ALTER TABLE proposals ADD COLUMN IF NOT EXISTS gate_missing_info JSONB")
+    op.execute("ALTER TABLE proposals ADD COLUMN IF NOT EXISTS gate_passed BOOLEAN")
 
-    # utterances — widen timestamp from int to bigint
-    op.alter_column("utterances", "timestamp_ms", type_=sa.BigInteger(), existing_type=sa.Integer())
+    # utterances — widen timestamp from int to bigint (idempotent: ALTER TYPE to same type is a no-op)
+    op.execute(
+        "ALTER TABLE utterances ALTER COLUMN timestamp_ms TYPE BIGINT USING timestamp_ms::BIGINT"
+    )
 
 
 def downgrade() -> None:

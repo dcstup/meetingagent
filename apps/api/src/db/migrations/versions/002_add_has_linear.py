@@ -13,9 +13,8 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column(
-        "workspaces",
-        sa.Column("has_linear", sa.Boolean(), server_default="false", nullable=False),
+    op.execute(
+        "ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS has_linear BOOLEAN NOT NULL DEFAULT false"
     )
 
 
