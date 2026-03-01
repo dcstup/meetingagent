@@ -103,11 +103,11 @@ class TestCerebrasExtraction:
 
         assert items == []
 
-    async def test_parses_html_artifact_action_type(self):
+    async def test_parses_design_prototype_action_type(self):
         resp = _mock_cerebras_response(json.dumps({
             "action_items": [
                 {"title": "Mock up login page", "body": "Create a login page prototype",
-                 "confidence": 0.9, "action_type": "html_artifact", "recipient": None,
+                 "confidence": 0.9, "action_type": "design_prototype", "recipient": None,
                  "dedupe_key": "mockup-login"}
             ]
         }))
@@ -117,7 +117,7 @@ class TestCerebrasExtraction:
             items = await extract_action_items("Let's mock up a login page")
 
         assert len(items) == 1
-        assert items[0]["action_type"] == "html_artifact"
+        assert items[0]["action_type"] == "design_prototype"
 
     async def test_dict_with_no_list_values(self):
         resp = _mock_cerebras_response(json.dumps({"message": "No action items found"}))

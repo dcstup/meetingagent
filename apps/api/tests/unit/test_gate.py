@@ -62,8 +62,8 @@ async def test_both_conditions_met_passes():
 
 @pytest.mark.asyncio
 async def test_high_avg_low_readiness_fails():
-    """avg > 3.8 but readiness < 4 => passed=False"""
-    scores = {**GOOD_SCORES, "readiness": 2}
+    """avg > 3.0 but readiness < 2 => passed=False"""
+    scores = {**GOOD_SCORES, "readiness": 1}
     resp_data = {**GOOD_RESPONSE, "scores": scores}
 
     mock_resp = MagicMock()

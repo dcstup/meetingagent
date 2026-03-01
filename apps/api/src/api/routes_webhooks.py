@@ -138,8 +138,10 @@ async def recall_transcript_webhook(
         logger.warning(f"No session found for bot_id={bot_id}, workspace={workspace.id}")
         return {"status": "ignored"}
 
-    u = utterances[0]
-    return await _store_and_broadcast(db, session, u.speaker, u.text, u.timestamp_ms)
+    result = {"status": "ok"}
+    for u in utterances:
+        result = await _store_and_broadcast(db, session, u.speaker, u.text, u.timestamp_ms)
+    return result
 
 
 @router.post("/recall/{secret}/status")

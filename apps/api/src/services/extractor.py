@@ -57,6 +57,8 @@ def filter_proposals(items: list[dict]) -> tuple[list[dict], list[dict]]:
         "update", "write", "prepare", "submit", "forward", "reply", "set",
         "book", "arrange", "organize", "compile", "complete", "finalize",
         "build", "prototype", "mock", "design", "visualize", "diagram", "wireframe",
+        "research", "investigate", "look", "find", "check", "explore", "analyze",
+        "cancel", "reschedule", "move", "post", "run", "execute", "trigger",
     }
 
     filtered = []
@@ -93,7 +95,8 @@ def filter_proposals(items: list[dict]) -> tuple[list[dict], list[dict]]:
 
         # Mark uncertain ones
         if CONFIDENCE_THRESHOLD_DROP <= confidence < CONFIDENCE_THRESHOLD_UNSURE:
-            item["title"] = item.get("title", "") + " ??"
+            if not item.get("title", "").endswith(" ??"):
+                item["title"] = item.get("title", "") + " ??"
 
         filtered.append(item)
 

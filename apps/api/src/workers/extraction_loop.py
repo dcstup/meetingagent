@@ -191,7 +191,7 @@ async def _run_extraction_cycle(
                             "data": {
                                 "title": fi.get("title", ""),
                                 "body": fi.get("body", ""),
-                                "action_type": fi.get("action_type", "generic_draft"),
+                                "action_type": fi.get("action_type", "general_agent"),
                                 "recipient": fi.get("recipient"),
                                 "confidence": fi.get("confidence", 0),
                                 "readiness": fi.get("readiness"),
@@ -243,7 +243,7 @@ async def _run_extraction_cycle(
             # --- Pre-approval gate ---
             candidate = {
                 "title": item.get("title", ""),
-                "action_type": item.get("action_type", "generic_draft"),
+                "action_type": item.get("action_type", "general_agent"),
                 "body": item.get("body", ""),
                 "recipient": item.get("recipient"),
             }
@@ -274,7 +274,7 @@ async def _run_extraction_cycle(
 
             proposal = Proposal(
                 session_id=uuid.UUID(session_id),
-                action_type=item.get("action_type", "generic_draft"),
+                action_type=item.get("action_type", "general_agent"),
                 title=item.get("title", ""),
                 body=item.get("body", ""),
                 recipient=item.get("recipient"),

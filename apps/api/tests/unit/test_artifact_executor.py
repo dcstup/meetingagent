@@ -1,10 +1,10 @@
-"""Unit tests for the artifact executor."""
+"""Unit tests for the artifact executor (execute_design_prototype)."""
 from unittest.mock import patch, MagicMock, AsyncMock
 import pytest
 
 
 @pytest.mark.asyncio
-class TestExecuteArtifact:
+class TestExecuteDesignPrototype:
 
     async def test_success_returns_html(self):
         mock_crew_result = MagicMock()
@@ -16,14 +16,14 @@ class TestExecuteArtifact:
              patch("src.services.executor.Crew") as MockCrew:
             MockCrew.return_value.kickoff.return_value = mock_crew_result
 
-            from src.services.executor import execute_artifact
-            result = await execute_artifact(
+            from src.services.executor import execute_design_prototype
+            result = await execute_design_prototype(
                 title="Login page mockup",
                 body="Create a login page with email and password fields",
             )
 
         assert result["status"] == "success"
-        assert result["type"] == "html_artifact"
+        assert result["type"] == "design_prototype"
         assert "<html>" in result["artifact_html"]
         assert result["title"] == "Login page mockup"
 
@@ -37,8 +37,8 @@ class TestExecuteArtifact:
              patch("src.services.executor.Crew") as MockCrew:
             MockCrew.return_value.kickoff.return_value = mock_crew_result
 
-            from src.services.executor import execute_artifact
-            result = await execute_artifact(title="Test", body="Test")
+            from src.services.executor import execute_design_prototype
+            result = await execute_design_prototype(title="Test", body="Test")
 
         assert result["status"] == "success"
         assert result["artifact_html"].startswith("<html>")
@@ -51,8 +51,8 @@ class TestExecuteArtifact:
              patch("src.services.executor.Crew") as MockCrew:
             MockCrew.return_value.kickoff.side_effect = RuntimeError("Model error")
 
-            from src.services.executor import execute_artifact
-            result = await execute_artifact(title="Test", body="Test")
+            from src.services.executor import execute_design_prototype
+            result = await execute_design_prototype(title="Test", body="Test")
 
         assert result["status"] == "failed"
         assert "Model error" in result["error"]
@@ -67,8 +67,8 @@ class TestExecuteArtifact:
              patch("src.services.executor.Crew") as MockCrew:
             MockCrew.return_value.kickoff.return_value = mock_crew_result
 
-            from src.services.executor import execute_artifact
-            result = await execute_artifact(
+            from src.services.executor import execute_design_prototype
+            result = await execute_design_prototype(
                 title="Sales dashboard",
                 body="Create a sales dashboard",
                 session_id="session-123",

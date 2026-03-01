@@ -10,6 +10,7 @@ apps/api/.venv/
 
 # Environment variables
 .env
+.env.test
 .env.local
 .env.*.local
 

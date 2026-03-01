@@ -66,7 +66,12 @@ async def extract_action_items(transcript_text: str) -> list[dict]:
 Extract actionable items that someone needs to do after the meeting.
 
 For each action item, determine:
-- action_type: "gmail_draft" if it involves sending an email, "html_artifact" if it involves building/prototyping/mocking up/designing/visualizing something (UI, diagram, flowchart, wireframe, dashboard, landing page, prototype, SVG, etc.), otherwise "generic_draft"
+- action_type: one of:
+  "calendar_action" if it involves scheduling, creating, modifying, or canceling calendar events or meetings (e.g. "schedule a meeting", "block off time", "move the standup to 3pm"),
+  "gmail_draft" if it involves sending or drafting an email,
+  "design_prototype" if it involves building, prototyping, designing, or visualizing something as an interactive artifact,
+  "research_query" if someone asks an open question needing research, fact-checking, or external data (e.g. "what's the market size for X?", "look into competitors", "find out about Y"),
+  "general_agent" for any other actionable task that doesn't fit the above categories
 - title: short title (max 80 chars)
 - body: the full action item description
 - recipient: email recipient if gmail_draft, null otherwise
@@ -75,7 +80,7 @@ For each action item, determine:
 - dedupe_key: a short canonical key for deduplication (e.g. "email-bob-proposal")
 
 Return a JSON array of action items. If none found, return [].
-Only extract items with clear action verbs (send, create, schedule, follow up, draft, review, etc.)."""
+Only extract items with clear action verbs (send, create, schedule, follow up, draft, review, research, investigate, find, check, explore, analyze, book, block, cancel, reschedule, move, post, run, execute, trigger, update, etc.)."""
 
     def _call_cerebras():
         try:

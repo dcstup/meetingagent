@@ -101,29 +101,32 @@ class TestExecuteGenericDraft:
         mock_crew_result.__str__ = lambda _: "Polished draft content"
 
         with patch("src.services.executor._get_conversation_context", new_callable=AsyncMock, return_value=""), \
+             patch("src.services.executor.get_web_tools", return_value=[]), \
              patch("src.services.executor.Agent"), \
              patch("src.services.executor.Task"), \
              patch("src.services.executor.Crew") as MockCrew:
             MockCrew.return_value.kickoff.return_value = mock_crew_result
 
-            from src.services.executor import execute_generic_draft
-            result = await execute_generic_draft(
+            from src.services.executor import execute_general_agent
+            result = await execute_general_agent(
+                entity_id=None,
                 title="Follow up meeting",
                 body="Schedule a follow-up meeting for next Monday",
             )
 
         assert result["status"] == "success"
-        assert result["type"] == "generic_draft"
+        assert result["type"] == "general_agent"
 
     async def test_crew_exception_returns_failure(self):
         with patch("src.services.executor._get_conversation_context", new_callable=AsyncMock, return_value=""), \
+             patch("src.services.executor.get_web_tools", return_value=[]), \
              patch("src.services.executor.Agent"), \
              patch("src.services.executor.Task"), \
              patch("src.services.executor.Crew") as MockCrew:
             MockCrew.return_value.kickoff.side_effect = RuntimeError("Model unavailable")
 
-            from src.services.executor import execute_generic_draft
-            result = await execute_generic_draft(title="Test", body="Test body")
+            from src.services.executor import execute_general_agent
+            result = await execute_general_agent(entity_id=None, title="Test", body="Test body")
 
         assert result["status"] == "failed"
         assert "Model unavailable" in result["error"]
@@ -145,3 +148,190 @@ class TestGetGmailTools:
             toolkits=["gmail"],
         )
         assert len(tools) == 2
+
+
+@pytest.mark.asyncio
+class TestExecuteResearchQuery:
+
+    async def test_execute_research_query_success(self):
+        mock_web_tool = MagicMock()
+        mock_crew_result = MagicMock()
+        mock_crew_result.__str__ = lambda _: "<html><body><h1>Research Report</h1></body></html>"
+
+        with patch("src.services.executor._get_conversation_context", new_callable=AsyncMock, return_value=""), \
+             patch("src.services.executor.get_web_tools", return_value=[mock_web_tool]), \
+             patch("src.services.executor.Agent") as MockAgent, \
+             patch("src.services.executor.Task") as MockTask, \
+             patch("src.services.executor.Crew") as MockCrew:
+            MockCrew.return_value.kickoff.return_value = mock_crew_result
+
+            from src.services.executor import execute_research_query
+            result = await execute_research_query(
+                title="AI trends 2025",
+                body="What are the biggest AI trends in 2025?",
+            )
+
+        assert result["status"] == "success"
+        assert result["type"] == "research_query"
+        assert "artifact_html" in result
+        assert "<html>" in result["artifact_html"]
+        assert result["title"] == "AI trends 2025"
+        # Verify web tools were passed to the agent
+        MockAgent.assert_called_once()
+        agent_kwargs = MockAgent.call_args[1]
+        assert mock_web_tool in agent_kwargs["tools"]
+
+
+@pytest.mark.asyncio
+class TestExecuteCalendarAction:
+
+    async def test_execute_calendar_action_success(self):
+        mock_calendar_tool = MagicMock()
+        mock_crew_result = MagicMock()
+        mock_crew_result.__str__ = lambda _: "Calendar event created successfully"
+
+        with patch("src.services.executor._get_calendar_tools", new_callable=AsyncMock, return_value=[mock_calendar_tool]), \
+             patch("src.services.executor._get_conversation_context", new_callable=AsyncMock, return_value=""), \
+             patch("src.services.executor.Agent"), \
+             patch("src.services.executor.Task"), \
+             patch("src.services.executor.Crew") as MockCrew:
+            MockCrew.return_value.kickoff.return_value = mock_crew_result
+
+            from src.services.executor import execute_calendar_action
+            result = await execute_calendar_action(
+                entity_id="entity-456",
+                title="Q2 planning sync",
+                body="Schedule a 1-hour Q2 planning meeting next Monday at 10am",
+            )
+
+        assert result["status"] == "success"
+        assert result["type"] == "calendar_action"
+        assert "result" in result
+
+    async def test_execute_calendar_action_no_entity(self):
+        from src.services.executor import execute_calendar_action
+        result = await execute_calendar_action(
+            entity_id=None,
+            title="Team sync",
+            body="Schedule a team sync",
+        )
+
+        assert result["status"] == "failed"
+        assert "Calendar not connected" in result["error"]
+
+    async def test_execute_calendar_action_no_tools_returns_failure(self):
+        with patch("src.services.executor._get_calendar_tools", new_callable=AsyncMock, return_value=[]):
+            from src.services.executor import execute_calendar_action
+            result = await execute_calendar_action(
+                entity_id="entity-789",
+                title="Meeting",
+                body="Create a meeting",
+            )
+
+        assert result["status"] == "failed"
+        assert "No Calendar tools" in result["error"]
+
+
+@pytest.mark.asyncio
+class TestExecuteGeneralAgent:
+
+    async def test_execute_general_agent_with_entity(self):
+        mock_composio_tool = MagicMock()
+        mock_web_tool = MagicMock()
+        mock_crew_result = MagicMock()
+        mock_crew_result.__str__ = lambda _: "Task completed successfully"
+
+        with patch("src.services.executor._get_composio_tools", new_callable=AsyncMock, return_value=[mock_composio_tool]), \
+             patch("src.services.executor.get_web_tools", return_value=[mock_web_tool]), \
+             patch("src.services.executor._get_conversation_context", new_callable=AsyncMock, return_value=""), \
+             patch("src.services.executor.Agent") as MockAgent, \
+             patch("src.services.executor.Task"), \
+             patch("src.services.executor.Crew") as MockCrew:
+            MockCrew.return_value.kickoff.return_value = mock_crew_result
+
+            from src.services.executor import execute_general_agent
+            result = await execute_general_agent(
+                entity_id="entity-111",
+                title="Send follow-up",
+                body="Send a follow-up email and schedule a meeting",
+            )
+
+        assert result["status"] == "success"
+        assert result["type"] == "general_agent"
+        # Verify both composio and web tools were combined and passed to agent
+        MockAgent.assert_called_once()
+        agent_kwargs = MockAgent.call_args[1]
+        assert mock_composio_tool in agent_kwargs["tools"]
+        assert mock_web_tool in agent_kwargs["tools"]
+
+    async def test_execute_general_agent_without_entity(self):
+        mock_web_tool = MagicMock()
+        mock_crew_result = MagicMock()
+        mock_crew_result.__str__ = lambda _: "Research complete"
+
+        with patch("src.services.executor.get_web_tools", return_value=[mock_web_tool]), \
+             patch("src.services.executor._get_conversation_context", new_callable=AsyncMock, return_value=""), \
+             patch("src.services.executor.Agent") as MockAgent, \
+             patch("src.services.executor.Task"), \
+             patch("src.services.executor.Crew") as MockCrew:
+            MockCrew.return_value.kickoff.return_value = mock_crew_result
+
+            from src.services.executor import execute_general_agent
+            result = await execute_general_agent(
+                entity_id=None,
+                title="Research competitors",
+                body="Look up our top 3 competitors",
+            )
+
+        assert result["status"] == "success"
+        # Verify only web tools were used (no composio tools)
+        MockAgent.assert_called_once()
+        agent_kwargs = MockAgent.call_args[1]
+        assert agent_kwargs["tools"] == [mock_web_tool]
+
+    async def test_execute_general_agent_html_detection(self):
+        mock_crew_result = MagicMock()
+        mock_crew_result.__str__ = lambda _: "<html><body><h1>Dashboard</h1></body></html>"
+
+        with patch("src.services.executor.get_web_tools", return_value=[]), \
+             patch("src.services.executor._get_conversation_context", new_callable=AsyncMock, return_value=""), \
+             patch("src.services.executor.Agent"), \
+             patch("src.services.executor.Task"), \
+             patch("src.services.executor.Crew") as MockCrew:
+            MockCrew.return_value.kickoff.return_value = mock_crew_result
+
+            from src.services.executor import execute_general_agent
+            result = await execute_general_agent(
+                entity_id=None,
+                title="Build dashboard",
+                body="Create a simple HTML dashboard",
+            )
+
+        assert result["status"] == "success"
+        assert result["type"] == "general_agent"
+        assert "artifact_html" in result
+        assert "<html>" in result["artifact_html"]
+        assert result["title"] == "Build dashboard"
+
+    async def test_execute_general_agent_plain_text(self):
+        mock_crew_result = MagicMock()
+        mock_crew_result.__str__ = lambda _: "The answer is 42. No HTML here."
+
+        with patch("src.services.executor.get_web_tools", return_value=[]), \
+             patch("src.services.executor._get_conversation_context", new_callable=AsyncMock, return_value=""), \
+             patch("src.services.executor.Agent"), \
+             patch("src.services.executor.Task"), \
+             patch("src.services.executor.Crew") as MockCrew:
+            MockCrew.return_value.kickoff.return_value = mock_crew_result
+
+            from src.services.executor import execute_general_agent
+            result = await execute_general_agent(
+                entity_id=None,
+                title="Simple question",
+                body="What is the answer?",
+            )
+
+        assert result["status"] == "success"
+        assert result["type"] == "general_agent"
+        assert "artifact_html" not in result
+        assert result["result"] == "The answer is 42. No HTML here."

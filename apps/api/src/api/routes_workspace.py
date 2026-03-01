@@ -1,3 +1,4 @@
+import logging
 import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -7,6 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.db.session import get_db
 from src.models.tables import Workspace
 from src.config import settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api")
 
@@ -57,11 +60,16 @@ async def oauth_google(db: AsyncSession = Depends(get_db)):
     redirect_url = f"{settings.app_public_url}/api/workspace/oauth/callback"
 
     from src.services.composio_client import initiate_oauth, initiate_gcal_oauth
-    try:
-        auth_url = initiate_oauth(entity_id, redirect_url)
-    except Exception:
-        # Gmail already connected, try Calendar
+
+    # If Gmail is already connected, go straight to Calendar OAuth
+    if workspace.composio_entity_id:
         auth_url = initiate_gcal_oauth(entity_id, redirect_url)
+    else:
+        try:
+            auth_url = initiate_oauth(entity_id, redirect_url)
+        except Exception as e:
+            logger.warning(f"Gmail OAuth initiation failed ({e}), falling back to Calendar OAuth")
+            auth_url = initiate_gcal_oauth(entity_id, redirect_url)
 
     return {"auth_url": auth_url}
 
@@ -87,31 +95,50 @@ async def oauth_google_calendar(db: AsyncSession = Depends(get_db)):
 @router.get("/workspace/oauth/callback")
 async def oauth_callback(request: Request, db: AsyncSession = Depends(get_db)):
     """Handle OAuth callback from Composio."""
+    # Log query params for observability — Composio may include error or code indicators
+    params = dict(request.query_params)
+    logger.info(f"OAuth callback received with params: {list(params.keys())}")
+    if "error" in params:
+        logger.warning(f"OAuth callback contains error: {params.get('error')}")
+
     result = await db.execute(select(Workspace).limit(1))
     workspace = result.scalar_one_or_none()
     if not workspace:
         raise HTTPException(status_code=404, detail="No workspace found")
 
+    # Mark Gmail as connected by setting the entity ID
     workspace.composio_entity_id = str(workspace.id)
     await db.commit()
 
-    # Also initiate Google Calendar OAuth if Gmail was just connected
+    # If Calendar is already connected, nothing more to do
+    if workspace.has_google_calendar:
+        logger.info("OAuth callback: Calendar already connected, redirecting to success")
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url="/api/workspace/oauth/success")
+
+    # Gmail was just connected — try to initiate Calendar OAuth next
     gcal_url = None
     try:
         from src.services.composio_client import initiate_gcal_oauth
         redirect_url = f"{settings.app_public_url}/api/workspace/oauth/callback"
         gcal_url = initiate_gcal_oauth(str(workspace.id), redirect_url)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Could not initiate Calendar OAuth after Gmail connect: {e}")
 
     if gcal_url:
         from fastapi.responses import RedirectResponse
         return RedirectResponse(url=gcal_url)
 
-    # If we didn't redirect to gcal OAuth, calendar OAuth just completed
+    # Calendar OAuth just completed (no gcal_url means we didn't start a new flow)
     workspace.has_google_calendar = True
     await db.commit()
 
+    return {"status": "connected", "message": "Google account connected successfully"}
+
+
+@router.get("/workspace/oauth/success")
+async def oauth_success():
+    """OAuth completion page — both Gmail and Calendar are connected."""
     return {"status": "connected", "message": "Google account connected successfully"}
 
 

@@ -9,6 +9,7 @@ from sqlalchemy import select
 
 from src.config import settings
 from src.config.constants import EXECUTOR_MODEL
+from src.services.web_tools import get_web_tools
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,30 @@ async def _get_gmail_tools(entity_id: str) -> list:
             api_key=settings.composio_api_key,
         )
         return sdk.tools.get(user_id=entity_id, toolkits=["gmail"])
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, _fetch)
+
+
+async def _get_calendar_tools(entity_id: str) -> list:
+    """Get CrewAI-wrapped Google Calendar tools from Composio for a specific user."""
+    def _fetch():
+        sdk = Composio(
+            provider=CrewAIProvider(),
+            api_key=settings.composio_api_key,
+        )
+        return sdk.tools.get(user_id=entity_id, toolkits=["googlecalendar"])
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, _fetch)
+
+
+async def _get_composio_tools(entity_id: str) -> list:
+    """Get all CrewAI-wrapped Composio tools for a specific user."""
+    def _fetch():
+        sdk = Composio(
+            provider=CrewAIProvider(),
+            api_key=settings.composio_api_key,
+        )
+        return sdk.tools.get(user_id=entity_id, toolkits=["gmail", "googlecalendar", "linear"])
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, _fetch)
 
@@ -102,6 +127,8 @@ async def execute_gmail_draft(
     session_id: str | None = None,
 ) -> dict:
     """Create a Gmail draft using CrewAI + Composio, with RAG context from conversation."""
+    if not entity_id:
+        return {"status": "failed", "error": "Gmail not connected. Please connect your Google account first."}
     try:
         gmail_tools = await _get_gmail_tools(entity_id)
         if not gmail_tools:
@@ -166,7 +193,7 @@ async def execute_gmail_draft(
         }
 
 
-async def execute_artifact(
+async def execute_design_prototype(
     title: str,
     body: str,
     session_id: str | None = None,
@@ -231,7 +258,7 @@ async def execute_artifact(
 
         return {
             "status": "success",
-            "type": "html_artifact",
+            "type": "design_prototype",
             "artifact_html": artifact_html,
             "title": title,
         }
@@ -239,17 +266,111 @@ async def execute_artifact(
         logger.error(f"Artifact execution failed: {e}", exc_info=True)
         return {
             "status": "failed",
-            "type": "html_artifact",
+            "type": "design_prototype",
             "error": str(e),
         }
 
 
-async def execute_generic_draft(
+async def execute_general_agent(
+    entity_id: str | None,
+    title: str,
+    body: str,
+    recipient: str | None = None,
+    session_id: str | None = None,
+) -> dict:
+    """Run a general-purpose agent with Composio + web tools, with RAG context from conversation."""
+    try:
+        # Build tool set: Composio session tools (if entity_id) + web tools
+        if entity_id:
+            composio_tools = await _get_composio_tools(entity_id)
+            all_tools = composio_tools + get_web_tools()
+        else:
+            all_tools = get_web_tools()
+
+        # RAG: retrieve relevant conversation context
+        context = ""
+        if session_id:
+            context = await _get_conversation_context(session_id, f"{title} {body}")
+
+        context_block = ""
+        if context:
+            context_block = (
+                f"\n\nRelevant meeting context:\n"
+                f"---\n{context}\n---"
+            )
+
+        agent = Agent(
+            role="General Assistant",
+            goal="Complete the requested task using all available tools. If the task requires building something visual, create a self-contained HTML document.",
+            backstory=(
+                "You are a capable general-purpose assistant. You use the best available tools "
+                "to complete tasks accurately. When building visual outputs, you produce clean, "
+                "self-contained HTML documents."
+            ),
+            tools=all_tools,
+            llm=EXECUTOR_MODEL,
+            verbose=False,
+        )
+
+        task = Task(
+            description=(
+                f"Complete this task:\n"
+                f"Title: {title}\n"
+                f"Details: {body}"
+                f"{context_block}\n\n"
+                f"Use all available tools as needed. "
+                f"If the result is a visual or structured document, output it as a complete HTML document."
+            ),
+            expected_output="The completed task result.",
+            agent=agent,
+        )
+
+        crew = Crew(agents=[agent], tasks=[task], verbose=False, tracing=True)
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, crew.kickoff)
+
+        result_str = str(result)
+
+        # Detect HTML output and return as artifact
+        is_html = "<html" in result_str.lower() or "<!doctype" in result_str.lower()
+        if is_html:
+            artifact_html = result_str
+            # Strip markdown code fences if present
+            if artifact_html.startswith("```"):
+                lines = artifact_html.split("\n")
+                if lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines and lines[-1].strip() == "```":
+                    lines = lines[:-1]
+                artifact_html = "\n".join(lines)
+            return {
+                "status": "success",
+                "type": "general_agent",
+                "artifact_html": artifact_html,
+                "title": title,
+            }
+
+        return {
+            "status": "success",
+            "type": "general_agent",
+            "title": title,
+            "result": result_str,
+        }
+    except Exception as e:
+        logger.error(f"General agent execution failed: {e}", exc_info=True)
+        return {
+            "status": "failed",
+            "type": "general_agent",
+            "error": str(e),
+        }
+
+
+async def execute_research_query(
     title: str,
     body: str,
     session_id: str | None = None,
 ) -> dict:
-    """Generate a polished draft using CrewAI, with RAG context from conversation."""
+    """Research a topic using web tools and produce an HTML report using CrewAI."""
     try:
         # RAG: retrieve relevant conversation context
         context = ""
@@ -264,24 +385,118 @@ async def execute_generic_draft(
             )
 
         agent = Agent(
-            role="Writing Assistant",
-            goal="Create polished, professional drafts informed by meeting context",
-            backstory="You are a skilled writer. You use meeting transcript context to create accurate, grounded professional documents.",
-            tools=[],
+            role="Research Analyst",
+            goal="Research the given question thoroughly using web search and produce a comprehensive research report as a self-contained HTML document with clean formatting, sections, and citations.",
+            backstory=(
+                "You are an expert researcher. Search the web, synthesize findings from multiple sources, "
+                "and produce a clear, well-structured HTML report. Always cite your sources with links."
+            ),
+            tools=get_web_tools(),
             llm=EXECUTOR_MODEL,
             verbose=False,
         )
 
         task = Task(
             description=(
-                f"Polish and expand this action item into a professional draft:\n"
+                f"Research this topic and produce a comprehensive HTML report:\n"
                 f"Title: {title}\n"
                 f"Details: {body}"
                 f"{context_block}\n\n"
-                f"Use the meeting context to make the draft specific and grounded. "
+                f"Search the web for relevant information from multiple sources. "
+                f"Synthesize your findings into a well-structured HTML document with:\n"
+                f"- A clear title and introduction\n"
+                f"- Organized sections with headings\n"
+                f"- Key findings and analysis\n"
+                f"- Citations and source links\n"
+                f"- Clean inline CSS styling\n\n"
+                f"Output ONLY a complete, valid HTML document. No explanation, just the HTML."
+            ),
+            expected_output="A complete, valid HTML research report document.",
+            agent=agent,
+        )
+
+        crew = Crew(agents=[agent], tasks=[task], verbose=False, tracing=True)
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, crew.kickoff)
+
+        artifact_html = str(result)
+        # Strip markdown code fences if present
+        if artifact_html.startswith("```"):
+            lines = artifact_html.split("\n")
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            artifact_html = "\n".join(lines)
+
+        return {
+            "status": "success",
+            "type": "research_query",
+            "artifact_html": artifact_html,
+            "title": title,
+        }
+    except Exception as e:
+        logger.error(f"Research query execution failed: {e}", exc_info=True)
+        return {
+            "status": "failed",
+            "type": "research_query",
+            "error": str(e),
+        }
+
+
+async def execute_calendar_action(
+    entity_id: str | None,
+    title: str,
+    body: str,
+    session_id: str | None = None,
+) -> dict:
+    """Manage Google Calendar events using CrewAI + Composio, with RAG context from conversation."""
+    try:
+        if not entity_id:
+            return {"status": "failed", "error": "Calendar not connected"}
+
+        calendar_tools = await _get_calendar_tools(entity_id)
+        if not calendar_tools:
+            return {
+                "status": "failed",
+                "type": "calendar_action",
+                "error": "No Calendar tools available. Check Composio connection.",
+            }
+
+        # RAG: retrieve relevant conversation context
+        context = ""
+        if session_id:
+            context = await _get_conversation_context(session_id, f"{title} {body}")
+
+        context_block = ""
+        if context:
+            context_block = (
+                f"\n\nRelevant meeting context:\n"
+                f"---\n{context}\n---"
+            )
+
+        agent = Agent(
+            role="Calendar Manager",
+            goal="Manage the user's Google Calendar: create, update, or cancel events as requested.",
+            backstory=(
+                "You are a calendar management specialist. You create well-structured calendar events "
+                "with proper titles, times, descriptions, and attendees based on meeting context."
+            ),
+            tools=calendar_tools,
+            llm=EXECUTOR_MODEL,
+            verbose=False,
+        )
+
+        task = Task(
+            description=(
+                f"Perform this calendar action:\n"
+                f"Title: {title}\n"
+                f"Details: {body}"
+                f"{context_block}\n\n"
+                f"Use the meeting context to set accurate event details. "
                 f"Do not fabricate details not present in the context."
             ),
-            expected_output="A polished professional draft document.",
+            expected_output="Confirmation that the calendar action was completed successfully.",
             agent=agent,
         )
 
@@ -291,14 +506,13 @@ async def execute_generic_draft(
 
         return {
             "status": "success",
-            "type": "generic_draft",
-            "title": title,
+            "type": "calendar_action",
             "result": str(result),
         }
     except Exception as e:
-        logger.error(f"Generic draft execution failed: {e}", exc_info=True)
+        logger.error(f"Calendar action execution failed: {e}", exc_info=True)
         return {
             "status": "failed",
-            "type": "generic_draft",
+            "type": "calendar_action",
             "error": str(e),
         }

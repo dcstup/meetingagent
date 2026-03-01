@@ -26,22 +26,29 @@ async def poll_calendar_events():
                         Workspace.has_google_calendar == True,  # noqa: E712
                     )
                 )
-                workspaces = result.scalars().all()
+                workspace_data = [
+                    {
+                        "id": ws.id,
+                        "composio_entity_id": ws.composio_entity_id,
+                        "webhook_secret": ws.webhook_secret,
+                    }
+                    for ws in result.scalars().all()
+                ]
 
             # Process each workspace with its own session to isolate failures
-            for workspace in workspaces:
+            for workspace in workspace_data:
                 try:
                     async with async_session() as ws_db:
                         await _check_workspace_events(ws_db, workspace)
                 except Exception as e:
-                    logger.error(f"Error checking workspace {workspace.id}: {e}")
+                    logger.error(f"Error checking workspace {workspace['id']}: {e}")
         except Exception as e:
             logger.error(f"Calendar poll error: {e}")
 
         await asyncio.sleep(CALENDAR_POLL_INTERVAL_S)
 
 
-async def _check_workspace_events(db: AsyncSession, workspace):
+async def _check_workspace_events(db: AsyncSession, workspace: dict):
     """Check a workspace's calendar for imminent meetings."""
     try:
         from composio import Composio
@@ -61,7 +68,7 @@ async def _check_workspace_events(db: AsyncSession, workspace):
                 "singleEvents": True,
                 "orderBy": "startTime",
             },
-            user_id=workspace.composio_entity_id,
+            user_id=workspace["composio_entity_id"],
             dangerously_skip_version_check=True,
         )
 
@@ -90,7 +97,7 @@ async def _check_workspace_events(db: AsyncSession, workspace):
             # Also check if a bot is already joining/active for this meet URL
             existing_session = await db.execute(
                 select(MeetingSession).where(
-                    MeetingSession.workspace_id == workspace.id,
+                    MeetingSession.workspace_id == workspace["id"],
                     MeetingSession.meet_url == meet_url,
                     MeetingSession.status.in_([
                         MeetingStatus.bot_joining,
@@ -104,7 +111,7 @@ async def _check_workspace_events(db: AsyncSession, workspace):
 
             # Create calendar event record
             cal_event = CalendarEvent(
-                workspace_id=workspace.id,
+                workspace_id=workspace["id"],
                 google_event_id=google_event_id,
                 title=event.get("summary", "Untitled"),
                 meet_url=meet_url,
@@ -121,11 +128,11 @@ async def _check_workspace_events(db: AsyncSession, workspace):
             # Create meeting session via adapter
             webhook_url = (
                 f"{settings.app_public_url}/webhooks/recall/"
-                f"{workspace.webhook_secret}/transcript"
+                f"{workspace['webhook_secret']}/transcript"
             )
             adapter = get_adapter("recall")
             metadata = await adapter.start_session(
-                workspace_id=str(workspace.id),
+                workspace_id=str(workspace["id"]),
                 meeting_url=meet_url,
                 webhook_url=webhook_url,
             )
@@ -135,7 +142,7 @@ async def _check_workspace_events(db: AsyncSession, workspace):
                 continue
 
             meeting = MeetingSession(
-                workspace_id=workspace.id,
+                workspace_id=workspace["id"],
                 calendar_event_id=cal_event.id,
                 recall_bot_id=bot_id,
                 adapter_type="recall",
@@ -151,7 +158,7 @@ async def _check_workspace_events(db: AsyncSession, workspace):
             # Broadcast meeting status
             try:
                 from src.services.ws_manager import manager
-                await manager.broadcast(str(workspace.id), {
+                await manager.broadcast(str(workspace["id"]), {
                     "type": "meeting_status",
                     "data": {
                         "session_id": str(meeting.id),
@@ -165,4 +172,4 @@ async def _check_workspace_events(db: AsyncSession, workspace):
     except ImportError as e:
         logger.warning(f"Composio not available ({e}), skipping calendar poll")
     except Exception as e:
-        logger.error(f"Error fetching calendar for workspace {workspace.id}: {e}")
+        logger.error(f"Error fetching calendar for workspace {workspace['id']}: {e}")

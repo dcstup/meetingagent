@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     composio_api_key: str = ""
     deepinfra_api_key: str = ""
     cerebras_api_key: str = ""
+    brave_api_key: str = ""
     app_public_url: str = "http://localhost:8000"
     bot_name: str = "YesChef"
     webhook_secret: str = ""  # auto-generated if empty

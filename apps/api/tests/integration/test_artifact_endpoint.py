@@ -15,7 +15,7 @@ from src.models.tables import (
 async def artifact_proposal(db_session, active_session):
     p = Proposal(
         session_id=active_session.id,
-        action_type="html_artifact",
+        action_type="design_prototype",
         title="Mock up login page",
         body="Create a login page with email and password fields",
         confidence=0.9,
@@ -35,7 +35,7 @@ async def artifact_execution(db_session, artifact_proposal):
     e = Execution(
         proposal_id=artifact_proposal.id,
         status=ExecutionStatus.success,
-        result={"status": "success", "type": "html_artifact", "title": "Login page"},
+        result={"status": "success", "type": "design_prototype", "title": "Login page"},
         artifact_html="<html><body><h1>Login</h1></body></html>",
     )
     db_session.add(e)

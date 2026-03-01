@@ -35,7 +35,7 @@ class ConnectionManager:
         if workspace_id not in self._connections:
             return
         dead: list[WebSocket] = []
-        for ws in self._connections[workspace_id]:
+        for ws in list(self._connections.get(workspace_id, [])):
             try:
                 await ws.send_json(message)
             except Exception:

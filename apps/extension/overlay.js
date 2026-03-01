@@ -178,13 +178,13 @@
     card.id = `proposal-${data.id}`;
 
     card.innerHTML = `
-      <div class="yc-proposal-type">${data.action_type === 'gmail_draft' ? '\u2709 Gmail Draft' : data.action_type === 'html_artifact' ? '\uD83C\uDFA8 Artifact' : '\uD83D\uDCDD Draft'}</div>
+      <div class="yc-proposal-type">${data.action_type === 'gmail_draft' ? '\u2709 Gmail Draft' : data.action_type === 'design_prototype' ? '\uD83C\uDFA8 Prototype' : '\uD83D\uDCDD Draft'}</div>
       <div class="yc-proposal-title">${escapeHtml(data.title)}</div>
       <div class="yc-proposal-body">${escapeHtml(data.body)}</div>
       ${data.recipient ? `<div class="yc-proposal-recipient">To: ${escapeHtml(data.recipient)}</div>` : ''}
       ${data.gate_evidence_quote ? `<blockquote class="yc-evidence-quote">${escapeHtml(data.gate_evidence_quote)}</blockquote>` : ''}
       ${data.gate_missing_info && data.gate_missing_info.length > 0 ? `<ul class="yc-missing-info">${data.gate_missing_info.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>` : ''}
-      ${data.gate_scores ? `<details class="yc-scores-debug"><summary>Scores &#9656;</summary><div class="yc-score-grid">${Object.entries(data.gate_scores).map(([k, v]) => `<span class="yc-score-label">${escapeHtml(k)}</span><span class="yc-score-value">${v}</span>`).join('')}</div>${data.gate_avg_score != null ? `<div class="yc-score-avg"><strong>avg: ${data.gate_avg_score}</strong></div>` : ''}</details>` : ''}
+      ${data.gate_scores && Object.keys(data.gate_scores).length > 0 ? `<details class="yc-scores-debug"><summary>Scores &#9656;</summary><div class="yc-score-grid">${Object.entries(data.gate_scores).map(([k, v]) => `<span class="yc-score-label">${escapeHtml(k)}</span><span class="yc-score-value">${v}</span>`).join('')}</div>${data.gate_avg_score != null ? `<div class="yc-score-avg"><strong>avg: ${data.gate_avg_score}</strong></div>` : ''}</details>` : ''}
       <div class="yc-proposal-actions">
         <button class="yc-btn-approve" data-proposal-id="${data.id}">Approve</button>
         <button class="yc-btn-dismiss" data-proposal-id="${data.id}">Dismiss</button>
@@ -209,11 +209,8 @@
   }
 
   function handleExecutionStarted(data) {
-    const card = document.getElementById(`proposal-${data.proposal_id}`);
-    if (card) {
-      const actions = card.querySelector('.yc-proposal-actions');
-      if (actions) actions.innerHTML = '<span style="color:var(--yc-gold);font-size:12px">Executing...</span>';
-    }
+    // The "Yes, Chef!" + "Executing..." state is already set immediately on approve click.
+    // This WS event is a no-op to avoid overwriting the optimistic UI.
   }
 
   function handleExecutionCompleted(data) {
@@ -231,9 +228,9 @@
 
       if (result.type === 'gmail_draft') {
         inlineContent = `<a class="yc-result-link" href="https://mail.google.com/mail/#drafts" target="_blank">Open in Gmail \u2192</a>`;
-      } else if (result.type === 'html_artifact' && result.artifact_url) {
+      } else if (result.type === 'design_prototype' && result.artifact_url) {
         inlineContent = `<button class="yc-btn-artifact" data-url="${escapeHtml(config.api_url + result.artifact_url)}" data-title="${escapeHtml(result.title || 'Artifact')}">View Artifact</button>`;
-      } else if (result.type === 'generic_draft' && result.body) {
+      } else if (result.type === 'general_agent' && result.body) {
         inlineContent = `<details class="yc-inline-draft"><summary>Show Draft</summary><div class="yc-inline-draft-text">${escapeHtml(result.body)}</div></details>`;
       }
 
@@ -324,15 +321,39 @@
   async function doApprove(id) {
     if (_pendingActions.has(id)) return;
     _pendingActions.add(id);
-    // Disable buttons immediately
     const card = document.getElementById(`proposal-${id}`);
-    if (card) card.querySelectorAll('button').forEach(b => b.disabled = true);
+    // Immediately show "Yes, Chef!" + "Executing..." together, before any API response
+    if (card) {
+      const actions = card.querySelector('.yc-proposal-actions');
+      if (actions) {
+        actions.innerHTML = `
+          <div class="yc-inline-result">
+            <span class="yc-result-badge success" style="color:var(--yc-gold);background:rgba(198,165,89,0.15)">Yes, Chef!</span>
+            <div class="yc-inline-result-content">
+              <span style="color:var(--yc-gold);font-size:12px">Executing...</span>
+            </div>
+          </div>
+        `;
+      }
+    }
     try {
       const resp = await fetch(`${config.api_url}/api/proposals/${id}/approve`, { method: 'POST' });
       if (!resp.ok) throw new Error('Approval failed');
+      _pendingActions.delete(id);
     } catch (err) {
       console.error('Approve error:', err);
-      if (card) card.querySelectorAll('button').forEach(b => b.disabled = false);
+      // On error, restore buttons so the user can retry
+      if (card) {
+        const actions = card.querySelector('.yc-proposal-actions');
+        if (actions) {
+          actions.innerHTML = `
+            <button class="yc-btn-approve" data-proposal-id="${id}">Approve</button>
+            <button class="yc-btn-dismiss" data-proposal-id="${id}">Dismiss</button>
+          `;
+          actions.querySelector('.yc-btn-approve').addEventListener('click', () => doApprove(id));
+          actions.querySelector('.yc-btn-dismiss').addEventListener('click', () => doDismiss(id));
+        }
+      }
       _pendingActions.delete(id);
     }
   }
@@ -345,6 +366,7 @@
     try {
       const resp = await fetch(`${config.api_url}/api/proposals/${id}/dismiss`, { method: 'POST' });
       if (!resp.ok) throw new Error('Dismiss failed');
+      _pendingActions.delete(id);
     } catch (err) {
       console.error('Dismiss error:', err);
       if (card) card.querySelectorAll('button').forEach(b => b.disabled = false);
