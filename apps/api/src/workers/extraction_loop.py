@@ -136,6 +136,9 @@ async def _run_extraction_cycle(
         ):
             raise _SessionEnded()
 
+        # Extract workspace_id early to avoid detached ORM access after commit
+        workspace_id = str(session.workspace_id)
+
         # Only fetch NEW utterances since last processed
         query = (
             select(Utterance)
@@ -185,7 +188,7 @@ async def _run_extraction_cycle(
             for fi in filtered_out:
                 try:
                     await manager.broadcast(
-                        str(session.workspace_id),
+                        workspace_id,
                         {
                             "type": "proposal_filtered",
                             "data": {
@@ -322,7 +325,7 @@ async def _run_extraction_cycle(
 
                 if proposal.gate_passed:
                     await manager.broadcast(
-                        str(session.workspace_id),
+                        workspace_id,
                         {
                             "type": "proposal_created",
                             "data": {
@@ -338,7 +341,7 @@ async def _run_extraction_cycle(
                     )
                 else:
                     await manager.broadcast(
-                        str(session.workspace_id),
+                        workspace_id,
                         {
                             "type": "proposal_dropped",
                             "data": {

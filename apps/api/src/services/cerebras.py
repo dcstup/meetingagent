@@ -64,13 +64,14 @@ async def extract_action_items(transcript_text: str) -> list[dict]:
 
     system_prompt = """You are an action-item extractor for meeting transcripts.
 Extract actionable items that someone needs to do after the meeting.
+Bias toward design_prototype — if a task could reasonably involve creating a visual artifact, prototype, or any built thing, classify it as design_prototype.
 
 For each action item, determine:
 - action_type: one of:
-  "calendar_action" if it involves scheduling, creating, modifying, or canceling calendar events or meetings (e.g. "schedule a meeting", "block off time", "move the standup to 3pm"),
-  "gmail_draft" if it involves sending or drafting an email,
-  "design_prototype" if it involves building, prototyping, designing, or visualizing something as an interactive artifact,
-  "research_query" if someone asks an open question needing research, fact-checking, or external data (e.g. "what's the market size for X?", "look into competitors", "find out about Y"),
+  "design_prototype" if it involves building, creating, designing, prototyping, mocking up, or visualizing ANYTHING — websites, homepages, landing pages, apps, dashboards, presentations, diagrams, charts, reports with visuals, UI layouts, wireframes, or any creative/visual deliverable. When in doubt about whether something should be built or just described, prefer design_prototype. Examples: "build the homepage", "create a mockup", "make a landing page", "design the dashboard", "put together a presentation", "visualize the data", "confirmed on the homepage" (implies it needs to be built), "Shanghai Cheap Food homepage" (a named deliverable that needs to be built). Trigger words: homepage, landing page, website, app, dashboard, mockup, prototype, design, UI, wireframe, layout, page, screen, visualization, diagram, chart, presentation, deck, report with visuals, interface, component, template, brand kit, style guide, logo, banner, graphic.
+  "calendar_action" if it ONLY involves scheduling, creating, modifying, or canceling calendar events or meetings (e.g. "schedule a meeting", "block off time", "move the standup to 3pm"),
+  "gmail_draft" if it ONLY involves sending or drafting an email to a specific person,
+  "research_query" if someone asks an open question needing research, fact-checking, or external data lookup (e.g. "what's the market size for X?", "look into competitors", "find out about Y"),
   "general_agent" for any other actionable task that doesn't fit the above categories
 - title: short title (max 80 chars)
 - body: the full action item description
@@ -80,7 +81,7 @@ For each action item, determine:
 - dedupe_key: a short canonical key for deduplication (e.g. "email-bob-proposal")
 
 Return a JSON array of action items. If none found, return [].
-Only extract items with clear action verbs (send, create, schedule, follow up, draft, review, research, investigate, find, check, explore, analyze, book, block, cancel, reschedule, move, post, run, execute, trigger, update, etc.)."""
+Only extract items with clear action verbs (send, create, schedule, follow up, draft, review, research, investigate, find, check, explore, analyze, book, block, cancel, reschedule, move, post, run, execute, trigger, update, build, design, prototype, mock up, visualize, etc.)."""
 
     def _call_cerebras():
         try:

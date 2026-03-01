@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 # Auth config IDs from Composio dashboard
 GMAIL_AUTH_CONFIG_ID = "ac_oJWdJcmo-SHT"
 GCAL_AUTH_CONFIG_ID = "ac_Z7mVPMZUjnsm"
+LINEAR_AUTH_CONFIG_ID = "ac_kZfFutvZ_R4n"
 
 
 def get_sdk() -> Composio:
@@ -43,6 +44,21 @@ def initiate_gcal_oauth(entity_id: str, redirect_url: str) -> str:
         return result.redirect_url
     except Exception as e:
         logger.error(f"GCal OAuth initiation failed: {e}")
+        raise
+
+
+def initiate_linear_oauth(entity_id: str, redirect_url: str) -> str:
+    """Start OAuth flow for Linear."""
+    sdk = get_sdk()
+    try:
+        result = sdk.connected_accounts.initiate(
+            user_id=entity_id,
+            auth_config_id=LINEAR_AUTH_CONFIG_ID,
+            callback_url=redirect_url,
+        )
+        return result.redirect_url
+    except Exception as e:
+        logger.error(f"Linear OAuth initiation failed: {e}")
         raise
 
 

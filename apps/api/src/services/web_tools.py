@@ -39,6 +39,12 @@ def brave_search(query: str) -> str:
 def web_fetch(url: str) -> str:
     """Fetch and extract text content from a web page URL. Returns the page text content."""
     try:
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        if parsed.hostname and parsed.hostname in ("localhost", "127.0.0.1", "0.0.0.0", "169.254.169.254"):
+            return "Fetch error: internal URLs are not allowed"
+        if parsed.scheme not in ("http", "https"):
+            return "Fetch error: only http/https URLs are supported"
         resp = requests.get(
             url,
             headers={"User-Agent": "YesChef-Agent/1.0"},

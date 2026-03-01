@@ -45,10 +45,8 @@ async def websocket_endpoint(
         await websocket.close(code=4001)
         return
 
-    # Register connection (already accepted above)
-    if workspace not in manager._connections:
-        manager._connections[workspace] = []
-    manager._connections[workspace].append(websocket)
+    # Register connection (already accepted above, so just add to connection list)
+    manager.register(workspace, websocket)
 
     await websocket.send_json({"type": "auth_ok", "data": {}})
 

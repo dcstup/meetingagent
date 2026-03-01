@@ -72,10 +72,10 @@ def filter_proposals(items: list[dict]) -> tuple[list[dict], list[dict]]:
             filtered_out.append(item)
             continue
 
-        # Drop items where readiness < 3 (topic still being debated)
+        # Drop items where readiness < 1 (topic still being debated)
         readiness = item.get("readiness")
-        if readiness is not None and readiness < 3:
-            item["filter_reason"] = f"readiness {readiness} < 3 (still being debated)"
+        if readiness is not None and readiness < 1:
+            item["filter_reason"] = f"readiness {readiness} < 1 (still being debated)"
             filtered_out.append(item)
             continue
 
@@ -95,8 +95,8 @@ def filter_proposals(items: list[dict]) -> tuple[list[dict], list[dict]]:
 
         # Mark uncertain ones
         if CONFIDENCE_THRESHOLD_DROP <= confidence < CONFIDENCE_THRESHOLD_UNSURE:
-            if not item.get("title", "").endswith(" ??"):
-                item["title"] = item.get("title", "") + " ??"
+            title_val = item.get("title", "").rstrip(" ?")
+            item["title"] = title_val + " ??"
 
         filtered.append(item)
 

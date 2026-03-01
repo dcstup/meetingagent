@@ -14,6 +14,19 @@ from src.services.web_tools import get_web_tools
 logger = logging.getLogger(__name__)
 
 
+def _strip_code_fences(text: str) -> str:
+    """Strip markdown code fences from LLM output, handling leading whitespace."""
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        lines = stripped.split("\n")
+        if lines[0].strip().startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        return "\n".join(lines)
+    return text
+
+
 async def _get_gmail_tools(entity_id: str) -> list:
     """Get CrewAI-wrapped Gmail tools from Composio for a specific user."""
     def _fetch():
@@ -67,12 +80,14 @@ async def _get_conversation_context(session_id: str, query_text: str, top_k: int
         return await _get_recent_context(session_id)
 
     async with async_session() as db:
+        # Limit to most recent 50 utterances to avoid excessive embedding API calls
         result = await db.execute(
             select(Utterance)
             .where(Utterance.session_id == uuid.UUID(session_id))
-            .order_by(Utterance.created_at)
+            .order_by(Utterance.created_at.desc())
+            .limit(50)
         )
-        utterances = result.scalars().all()
+        utterances = list(reversed(result.scalars().all()))
 
     if not utterances:
         return ""
@@ -128,7 +143,7 @@ async def execute_gmail_draft(
 ) -> dict:
     """Create a Gmail draft using CrewAI + Composio, with RAG context from conversation."""
     if not entity_id:
-        return {"status": "failed", "error": "Gmail not connected. Please connect your Google account first."}
+        return {"status": "failed", "type": "gmail_draft", "error": "Gmail not connected. Please connect your Google account first."}
     try:
         gmail_tools = await _get_gmail_tools(entity_id)
         if not gmail_tools:
@@ -173,13 +188,14 @@ async def execute_gmail_draft(
             agent=agent,
         )
 
-        crew = Crew(agents=[agent], tasks=[task], verbose=False, tracing=True)
+        crew = Crew(agents=[agent], tasks=[task], verbose=False, tracing=False)
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(None, crew.kickoff)
 
         return {
             "status": "success",
             "type": "gmail_draft",
+            "title": subject,
             "recipient": recipient,
             "subject": subject,
             "result": str(result),
@@ -242,19 +258,11 @@ async def execute_design_prototype(
             agent=agent,
         )
 
-        crew = Crew(agents=[agent], tasks=[task], verbose=False, tracing=True)
+        crew = Crew(agents=[agent], tasks=[task], verbose=False, tracing=False)
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(None, crew.kickoff)
 
-        artifact_html = str(result)
-        # Strip markdown code fences if present
-        if artifact_html.startswith("```"):
-            lines = artifact_html.split("\n")
-            if lines[0].startswith("```"):
-                lines = lines[1:]
-            if lines and lines[-1].strip() == "```":
-                lines = lines[:-1]
-            artifact_html = "\n".join(lines)
+        artifact_html = _strip_code_fences(str(result))
 
         return {
             "status": "success",
@@ -301,7 +309,12 @@ async def execute_general_agent(
 
         agent = Agent(
             role="General Assistant",
-            goal="Complete the requested task using all available tools. If the task requires building something visual, create a self-contained HTML document.",
+            goal=(
+                "Complete the requested task using all available tools. "
+                "Always include links to any resources you create (e.g. Linear ticket URLs, Gmail draft links). "
+                "Provide a clear summary of actions taken. "
+                "If the task requires building something visual, create a self-contained HTML document."
+            ),
             backstory=(
                 "You are a capable general-purpose assistant. You use the best available tools "
                 "to complete tasks accurately. When building visual outputs, you produce clean, "
@@ -319,34 +332,29 @@ async def execute_general_agent(
                 f"Details: {body}"
                 f"{context_block}\n\n"
                 f"Use all available tools as needed. "
+                f"Always include links to any resources you create (e.g. Linear ticket URLs, Gmail draft links). "
+                f"Provide a clear summary of what was done. "
                 f"If the result is a visual or structured document, output it as a complete HTML document."
             ),
-            expected_output="The completed task result.",
+            expected_output="A clear summary of actions taken, including links to any created resources.",
             agent=agent,
         )
 
-        crew = Crew(agents=[agent], tasks=[task], verbose=False, tracing=True)
+        crew = Crew(agents=[agent], tasks=[task], verbose=False, tracing=False)
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(None, crew.kickoff)
 
         result_str = str(result)
 
         # Detect HTML output and return as artifact
+        # Strip fences before HTML detection (LLM may wrap HTML in ```)
+        result_str = _strip_code_fences(result_str)
         is_html = "<html" in result_str.lower() or "<!doctype" in result_str.lower()
         if is_html:
-            artifact_html = result_str
-            # Strip markdown code fences if present
-            if artifact_html.startswith("```"):
-                lines = artifact_html.split("\n")
-                if lines[0].startswith("```"):
-                    lines = lines[1:]
-                if lines and lines[-1].strip() == "```":
-                    lines = lines[:-1]
-                artifact_html = "\n".join(lines)
             return {
                 "status": "success",
                 "type": "general_agent",
-                "artifact_html": artifact_html,
+                "artifact_html": result_str,
                 "title": title,
             }
 
@@ -415,19 +423,11 @@ async def execute_research_query(
             agent=agent,
         )
 
-        crew = Crew(agents=[agent], tasks=[task], verbose=False, tracing=True)
+        crew = Crew(agents=[agent], tasks=[task], verbose=False, tracing=False)
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(None, crew.kickoff)
 
-        artifact_html = str(result)
-        # Strip markdown code fences if present
-        if artifact_html.startswith("```"):
-            lines = artifact_html.split("\n")
-            if lines[0].startswith("```"):
-                lines = lines[1:]
-            if lines and lines[-1].strip() == "```":
-                lines = lines[:-1]
-            artifact_html = "\n".join(lines)
+        artifact_html = _strip_code_fences(str(result))
 
         return {
             "status": "success",
@@ -453,7 +453,7 @@ async def execute_calendar_action(
     """Manage Google Calendar events using CrewAI + Composio, with RAG context from conversation."""
     try:
         if not entity_id:
-            return {"status": "failed", "error": "Calendar not connected"}
+            return {"status": "failed", "type": "calendar_action", "error": "Calendar not connected. Please connect your Google account first."}
 
         calendar_tools = await _get_calendar_tools(entity_id)
         if not calendar_tools:
@@ -500,13 +500,14 @@ async def execute_calendar_action(
             agent=agent,
         )
 
-        crew = Crew(agents=[agent], tasks=[task], verbose=False, tracing=True)
+        crew = Crew(agents=[agent], tasks=[task], verbose=False, tracing=False)
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(None, crew.kickoff)
 
         return {
             "status": "success",
             "type": "calendar_action",
+            "title": title,
             "result": str(result),
         }
     except Exception as e:

@@ -14,6 +14,10 @@ class ConnectionManager:
 
     async def connect(self, workspace_id: str, websocket: WebSocket):
         await websocket.accept()
+        self.register(workspace_id, websocket)
+
+    def register(self, workspace_id: str, websocket: WebSocket):
+        """Register an already-accepted WebSocket connection."""
         if workspace_id not in self._connections:
             self._connections[workspace_id] = []
         self._connections[workspace_id].append(websocket)

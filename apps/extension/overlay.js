@@ -178,7 +178,7 @@
     card.id = `proposal-${data.id}`;
 
     card.innerHTML = `
-      <div class="yc-proposal-type">${data.action_type === 'gmail_draft' ? '\u2709 Gmail Draft' : data.action_type === 'design_prototype' ? '\uD83C\uDFA8 Prototype' : '\uD83D\uDCDD Draft'}</div>
+      <div class="yc-proposal-type">${data.action_type === 'gmail_draft' ? '\u2709 Gmail Draft' : data.action_type === 'design_prototype' ? '\uD83C\uDFA8 Prototype' : data.action_type === 'calendar_action' ? '\uD83D\uDCC5 Calendar' : data.action_type === 'research_query' ? '\uD83D\uDD0D Research' : data.action_type === 'general_agent' ? '\uD83E\uDD16 Agent' : '\uD83D\uDCDD Task'}</div>
       <div class="yc-proposal-title">${escapeHtml(data.title)}</div>
       <div class="yc-proposal-body">${escapeHtml(data.body)}</div>
       ${data.recipient ? `<div class="yc-proposal-recipient">To: ${escapeHtml(data.recipient)}</div>` : ''}
@@ -228,10 +228,41 @@
 
       if (result.type === 'gmail_draft') {
         inlineContent = `<a class="yc-result-link" href="https://mail.google.com/mail/#drafts" target="_blank">Open in Gmail \u2192</a>`;
-      } else if (result.type === 'design_prototype' && result.artifact_url) {
-        inlineContent = `<button class="yc-btn-artifact" data-url="${escapeHtml(config.api_url + result.artifact_url)}" data-title="${escapeHtml(result.title || 'Artifact')}">View Artifact</button>`;
-      } else if (result.type === 'general_agent' && result.body) {
-        inlineContent = `<details class="yc-inline-draft"><summary>Show Draft</summary><div class="yc-inline-draft-text">${escapeHtml(result.body)}</div></details>`;
+      } else if (result.type === 'design_prototype') {
+        if (result.artifact_url) {
+          inlineContent = `<button class="yc-btn-artifact" data-url="${escapeHtml(config.api_url + result.artifact_url)}" data-title="${escapeHtml(result.title || 'Artifact')}">View Artifact</button>`;
+        } else {
+          const fallback = result.result || result.body || 'Artifact generated (no preview available)';
+          inlineContent = `<details class="yc-inline-draft"><summary>Show Artifact</summary><div class="yc-inline-draft-text">${escapeHtml(fallback)}</div></details>`;
+        }
+      } else if (result.type === 'general_agent') {
+        if (result.artifact_url) {
+          inlineContent = `<button class="yc-btn-artifact" data-url="${escapeHtml(config.api_url + result.artifact_url)}" data-title="${escapeHtml(result.title || 'Result')}">View Result</button>`;
+        } else if (result.body) {
+          inlineContent = `<details class="yc-inline-draft"><summary>Show Result</summary><div class="yc-inline-draft-text">${escapeHtml(result.body)}</div></details>`;
+        } else if (result.result) {
+          inlineContent = `<details class="yc-inline-draft"><summary>Show Result</summary><div class="yc-inline-draft-text">${escapeHtml(result.result)}</div></details>`;
+        }
+      } else if (result.type === 'research_query') {
+        if (result.artifact_url) {
+          inlineContent = `<button class="yc-btn-artifact" data-url="${escapeHtml(config.api_url + result.artifact_url)}" data-title="${escapeHtml(result.title || 'Research Report')}">View Report</button>`;
+        } else {
+          const fallback = result.result || result.body || 'Research complete (no report available)';
+          inlineContent = `<details class="yc-inline-draft"><summary>Show Report</summary><div class="yc-inline-draft-text">${escapeHtml(fallback)}</div></details>`;
+        }
+      } else if (result.type === 'calendar_action') {
+        const calText = result.body || result.result;
+        if (calText) {
+          inlineContent = `<details class="yc-inline-draft"><summary>Show Confirmation</summary><div class="yc-inline-draft-text">${escapeHtml(calText)}</div></details>`;
+        }
+      }
+
+      // Fallback: any result with body/result text but no specific rendering
+      if (!inlineContent) {
+        const fallbackText = result.body || result.result;
+        if (fallbackText) {
+          inlineContent = `<details class="yc-inline-draft"><summary>Show Result</summary><div class="yc-inline-draft-text">${escapeHtml(fallbackText)}</div></details>`;
+        }
       }
 
       actions.innerHTML = `
